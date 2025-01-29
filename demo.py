@@ -13,10 +13,11 @@ capsules_layer_1 = torch.zeros(2, 2)
 print("layer_0:", capsules_layer_0, sep="\n")
 print("layer_1:", capsules_layer_1, sep="\n")
 
-num_of_capsules_layer_i, capsule_size_layer_i = capsules_layer_0.size()
-num_of_capsules_layer_j, capsule_size_layer_j = capsules_layer_1.size()
+capsule_count_lower_level, capsule_dimension_lower_level = capsules_layer_0.size()
+capsule_count_higher_level, capsule_dimension_higher_level = capsules_layer_1.size()
 
-W = torch.randn(num_of_capsules_layer_i, num_of_capsules_layer_j, capsule_size_layer_j, capsule_size_layer_i)
+# Randomised weight matrices
+W = torch.randn(capsule_count_lower_level, capsule_count_higher_level, capsule_dimension_higher_level, capsule_dimension_lower_level)
 
 print("W:", W)
 print("W size", W.size())
@@ -27,15 +28,28 @@ def routing(r: int=3):
     
     """
     # line 2: for all capsule i in layer l and capsule j in layer (l+1): bij ← 0.
-    b_ij = torch.zeros(num_of_capsules_layer_i, num_of_capsules_layer_j)
+    b_ij = torch.zeros(capsule_count_lower_level, capsule_count_higher_level)
 
-    # Reshaping capsules_layer_0 to match dimensions for multiplication
-    u = capsules_layer_0.unsqueeze(1).expand(-1, num_of_capsules_layer_j, -1)
-    print("u (expanded):", u)
+    # Reshaping capsules_layer_0 to match dimensions for multiplication with weight matrix W
+    # begins with lower layer sizes
+    # [num_of_capsules, capsule_dimension]
+    # --unsqueeze(1)-->
+    # [num_of_capsules, 1, capsule_dimension]
+    # --expand(-1, num_of_capsules_layer_next, -1)-->
+    # [num_of_capsules, num_of_capsules_next_layer, capsule_dimension]
+    # --unsqueeze(-1)-->
+    # [num_of_capsules, num_of_capsules_next_layer, capsule_dimension, 1]
+    u = (
+        capsules_layer_0
+        .unsqueeze(1) # add a new dimension at index 1
+        .expand(-1, capsule_count_higher_level, -1)
+        .unsqueeze(-1) # add a new dimension after the current last
+    )
     print("u size:", u.size())
+    print("u after unsqueeze:", u)
 
     # Compute predicted outputs (u_hat) using matrix multiplication
-    u_hat = torch.matmul(W, u.unsqueeze(-1))  # Shape: [3, 2, 2, 1]
+    u_hat = torch.matmul(W, u)  # Shape: [3, 2, 2, 1]
     u_hat = u_hat.squeeze(-1)  # Shape: [3, 2, 2] (Remove the last singleton dimension)
     print("u_hat:", u_hat)
     print("u_hat size:", u_hat.size())
@@ -67,7 +81,19 @@ def routing(r: int=3):
 
         # Update logits
         # line 7
-        b_ij = b_ij + (u_hat.matmul(v_j)).sum(1)
+        #TODO something still wrong here i think
+        print("b_ij size:", b_ij.size())
+        print("u_hat size:", u_hat.size())
+        print("v_j size:", v_j.size())
+
+        t = v_j.unsqueeze(0).expand(3, -1, -1)
+
+        print("u_hat", u_hat)
+        print("t", t)
+        # print("dot", u_hat.dot(v_j.unsqueeze(0).expand(3, -1, -1)))
+        b_ij = b_ij + (u_hat * t).sum(-1) # sum also squeezes matrix by default
+
+        print("v_j", v_j)
 
     return v_j
         
