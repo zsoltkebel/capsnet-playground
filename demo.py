@@ -114,7 +114,7 @@ def procedure1(in_capsules, out_capsule_count, out_capsule_dimension, r: int=3):
     """
     in_capsule_count, in_capsule_dimension = in_capsules.size()
 
-    W = torch.randn(1, in_capsule_count, out_capsule_count, out_capsule_dimension, in_capsule_dimension).squeeze(0) # add first dimension and squeeze to have same random geneerated as in digitcaps
+    W = torch.randn(in_capsule_count, out_capsule_count, out_capsule_dimension, in_capsule_dimension)
 
     # line 2: for all capsule i in layer l and capsule j in layer (l+1): bij ← 0.
     b_ij = torch.zeros(in_capsule_count, out_capsule_count)
