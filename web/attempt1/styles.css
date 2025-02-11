@@ -1,0 +1,19 @@
+.network {
+    display: flex;
+    justify-content: space-between;
+}
+
+.network .layer {
+    width: fit-content;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.capsule {
+    border: 2px solid black; /* Black border */
+    border-radius: 9999px; /* Fully rounded for capsule shape */
+    padding: 10px 20px; /* Space inside the div */
+    display: inline-block; /* Makes the div wrap around content */
+    font-family: Arial, sans-serif; /* Optional: Set a font */
+}
