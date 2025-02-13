@@ -11,19 +11,20 @@
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs/dist/tf.min.js"> </script>
 </head>
 <body>
-    
     <div class="network">
         <div class="n-column">
-            <div class="ui-numHiddenLayers">
-                <button id="add-layers" class="mdl-button mdl-js-button mdl-button--icon" data-upgraded=",MaterialButton">
-                    <i class="material-icons">add</i>
-                </button>
-                <button id="remove-layers" class="mdl-button mdl-js-button mdl-button--icon" data-upgraded=",MaterialButton">
-                    <i class="material-icons">remove</i>
-                </button>
-            </div>
-
-            <h4>Input Capsules</h4>
+            <h4>
+                <div class="ui-numHiddenLayers">
+                    <button id="add-layers" class="mdl-button mdl-js-button mdl-button--icon" data-upgraded=",MaterialButton">
+                        <i class="material-icons">add</i>
+                    </button>
+                    <button id="remove-layers" class="mdl-button mdl-js-button mdl-button--icon" data-upgraded=",MaterialButton">
+                        <i class="material-icons">remove</i>
+                    </button>
+                </div>
+                
+                <span>Input Capsules</span>
+            </h4>
             
             <div id="layer0" class="layer">
                 
@@ -41,17 +42,20 @@
                 </div>
             </div>
         </div>
+        <svg ></svg>
         <div class="n-column">
-            <div class="ui-numHiddenLayers">
-                <button id="add-output-layer" class="mdl-button mdl-js-button mdl-button--icon" data-upgraded=",MaterialButton">
-                    <i class="material-icons">add</i>
-                </button>
-                <button id="remove-output-layer" class="mdl-button mdl-js-button mdl-button--icon" data-upgraded=",MaterialButton">
-                    <i class="material-icons">remove</i>
-                </button>
-            </div>
-
-            <h4>Output Capsules</h4>
+            <h4>
+                <div class="ui-numHiddenLayers">
+                    <button id="add-output-layer" class="mdl-button mdl-js-button mdl-button--icon" data-upgraded=",MaterialButton">
+                        <i class="material-icons">add</i>
+                    </button>
+                    <button id="remove-output-layer" class="mdl-button mdl-js-button mdl-button--icon" data-upgraded=",MaterialButton">
+                        <i class="material-icons">remove</i>
+                    </button>
+                </div>
+                
+                <span>Output Capsules</span>
+            </h4>
             
             <div id="layer1" class="layer">
                 

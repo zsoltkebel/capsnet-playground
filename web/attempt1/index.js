@@ -157,12 +157,7 @@ d3.select("#add-layers")
     ])
     u = tf.concat([u, newCapsule]);
     
-    console.log(u.shape)
-    let v = routing(u, out_capsule_count, out_capsule_dimension);
-
-    addCapsules(u.arraySync(), layer);
-    const layer1 = d3.select("#layer1");
-    addCapsules(v.arraySync(), layer1);
+    drawNetwork();
 })
 
 d3.select("#remove-layers")
@@ -189,6 +184,16 @@ function drawNetwork() {
     addCapsules(u.arraySync(), layer);
     const layer1 = d3.select("#layer1");
     addCapsules(v.arraySync(), layer1);
+
+    //draw links
+    d3.select("svg").selectAll("path").remove();
+    let in_count = u.shape[0];
+    console.log("in count: " + in_count);
+    for (let i = 0; i < in_count; i++) {
+        for (let j = 0; j < out_capsule_count; j++) {
+            drawLink(i, j)
+        }
+    }
 }
 
 function removeCapsule(tensor) {
@@ -200,3 +205,33 @@ function removeCapsule(tensor) {
     return newTensor
 }
 
+drawNetwork();
+
+// try linking
+function drawLink(fromCapsule, toCapsule) {
+
+    const svg = d3.select("svg");
+
+    const width = svg.node().getBoundingClientRect().width;
+
+    const spreadDist = 10
+    const fromOffset = d3.scaleLinear([0, u.shape[0] - 1], [-spreadDist/2, spreadDist/2]);
+    const toOffset = d3.scaleLinear([0, out_capsule_count - 1], [-spreadDist/2, spreadDist/2]);
+
+    // Define two points
+    const source = { x: 0, y: 115 + fromCapsule * 45 + toOffset(toCapsule) };  // Start point
+    const target = { x: width, y: 115 + toCapsule * 45 + fromOffset(fromCapsule)}; // End point
+
+    // Create a link generator
+    const link = d3.linkHorizontal()
+        .x(d => d.x)
+        .y(d => d.y);
+
+    // Append the path
+    svg.append("path")
+        .attr("d", link({ source, target }))
+        .attr("fill", "none")
+        .attr("stroke", "black")
+        .attr("stroke-width", 2);
+
+}
