@@ -1,4 +1,6 @@
 .network {
+    position: absolute;
+    top: 100%;
     display: flex;
     justify-content: space-between;
 }
@@ -17,7 +19,15 @@
 .capsule {
     border: 2px solid black; /* Black border */
     border-radius: 9999px; /* Fully rounded for capsule shape */
-    padding: 10px 20px; /* Space inside the div */
-    display: inline-block; /* Makes the div wrap around content */
+    /*padding: 10px 20px; /* Space inside the div */
+    display: block; /* Makes the div wrap around content */
     font-family: Arial, sans-serif; /* Optional: Set a font */
+}
+
+#network {
+    position: absolute;
+}
+
+#network #capsule {
+    position: absolute;
 }
