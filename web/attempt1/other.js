@@ -16,16 +16,137 @@ let network = d3.select("#network")
 class Capsule {
     constructor(id, dimension) {
         this.id = id;
-        this.values = Array.from({ length: dimension }, () => Math.random());
+        // this.values = Array.from({ length: dimension }, () => Math.random());
+        this.values = tf.randomNormal([dimension]);
         this.outputLinks = [];
         this.inputLinks = [];
+    }
+
+    get dimension() {
+        return this.values.size;
     }
 }
 
 class Link {
+    /**
+     * 
+     * @param {Capsule} source 
+     * @param {Capsule} destination 
+     */
     constructor(source, destination) {
         this.source = source;
         this.destination = destination;
+        this.weight = tf.randomNormal([destination.dimension, source.dimension]); //W_ij is a matrix of size (dest dim x source dim)
+        this.c = []; // c_ij matrix value for this link (this is an array to show value at each iteration of the dynamic routing)
+    }
+
+    get u_hat() {
+        return tf.matMul(this.weight, tf.expandDims(this.source.values, 1)).squeeze();
+    }
+}
+
+// Squashing function for Capsule Networks
+function squash(s) {
+    // Step 1: Compute the norm (Euclidean norm) of the vector along the last axis (axis=-1)
+    const norm = tf.norm(s, 'euclidean', -1); // This returns a tensor of shape [batchSize] or a scalar if s is 1D
+    
+    // Step 2: Square the norm
+    const normSquared = tf.square(norm);
+    
+    // Step 3: Compute the squashing factor: ||s_j||^2 / (1 + ||s_j||^2)
+    const squashFactor = tf.div(normSquared, tf.add(normSquared, tf.scalar(1.0)));
+    
+    // Step 4: Normalize the vector s_j by dividing by its norm
+    // If s is a batch of vectors, norm has shape [batchSize], so we need to expand it to shape [batchSize, 1]
+    const normalizedS = tf.div(s, norm.expandDims(-1)); // Ensure broadcasting works properly
+    
+    // Step 5: Return the final squashed vector: squashFactor * normalizedS
+    return tf.mul(squashFactor.expandDims(-1), normalizedS);
+}
+
+class CapsuleNetwork {
+    constructor(capsuleCounts, capsuleDimensions) {
+        this.network = buildNetwork(capsuleCounts, capsuleDimensions);
+        this.c_ij = {}; //tensor of c_ij matrices where the first dimension will be layer index
+    }
+    
+    forward() {
+        for (let layer = 0; layer < this.network.length - 1; layer++) {
+            this.dynamicRouting(3, layer);
+        }
+    }
+
+    dynamicRouting(r, l) {
+        const i_count = this.network[l].length;
+        const j_count = this.network[l + 1].length;
+
+        let u_hat_2 = tf.stack(this.network[l].map(capsule => {
+            return tf.stack(capsule.outputLinks.map(link => link.u_hat));
+        }));
+
+        console.log("u_hat_2:");
+        u_hat_2.print();
+
+        let b_ij = tf.zeros([i_count, j_count]);
+        console.log("b_ij:");
+        b_ij.print();
+
+        let c_ij
+        let v_j;
+        for (let iteration = 0; iteration < r; iteration++) {
+            console.log(`Iteration ${iteration + 1}.`);
+
+            c_ij = tf.softmax(b_ij);
+            console.log("c_ij:");
+            c_ij.print();
+            
+            // save c_ij values into model for visualisation
+            let c_ij_array = c_ij.arraySync();
+            for (let ci = 0; ci < c_ij_array.length; ci++) {
+                for (let li = 0; li < c_ij_array[ci].length; li++) {
+                    this.network[l][ci].outputLinks[li].c.push(c_ij_array[ci][li]);
+                }
+            }
+
+            //TODO loop approach
+            // let s_j = [];
+            // for (let j = 0; j < j_count; j++) {
+            //     let sum = tf.zeros([this.network[l + 1][j].dimension]);
+            //     for (let i = 0; i < i_count; i++) {
+            //         let cValue =c_ij.arraySync()[i][j];
+            //         // console.log(`c_${i}_${j}: `, cValue);
+
+            //         console.log("u_hat:");
+            //         this.network[l][i].outputLinks[j].u_hat.print();
+
+            //         let p = tf.mul(cValue, this.network[l][i].outputLinks[j].u_hat);
+            //         sum = tf.add(sum, p);
+            //     }
+            //     s_j.push(sum);
+            //     // console.log("sum:");
+            //     // sum.print();
+            // }
+            // s_j = tf.stack(s_j);
+            // console.log("s_j:");
+            // s_j.print();
+            //TODO tensorflow approach
+            let s_j = tf.sum(tf.mul(c_ij.expandDims(2), u_hat_2), 0);
+            // s_j = s_j.expandDims(2);
+            console.log("s_j:");
+            s_j.print();
+            
+
+            v_j = squash(s_j);
+            console.log("v_j:");
+            v_j.print();
+
+            b_ij = tf.add(b_ij, tf.sum(tf.mul(u_hat_2, v_j), 2));
+        }
+        this.c_ij[l] = c_ij;
+
+        
+
+        return v_j;
     }
 }
 
@@ -108,7 +229,8 @@ function drawNetwork(network) {
                     cx + CAPSULE_WIDTH / 2,
                     cy,
                     layerScale(currentLayer + 1) - CAPSULE_WIDTH / 2,
-                    nodeIndexScale(currentLink) + CAPSULE_HEIGHT / 2
+                    nodeIndexScale(currentLink) + CAPSULE_HEIGHT / 2,
+                    capsule.outputLinks[currentLink]
                 );
             }
         }
@@ -159,7 +281,15 @@ function getCoordinatesOfCapsule(layer, index) {
 
 }
 
-function drawLink(source_x, source_y, target_x, target_y) {
+/**
+ * 
+ * @param {*} source_x 
+ * @param {*} source_y 
+ * @param {*} target_x 
+ * @param {*} target_y 
+ * @param {Link} link 
+ */
+function drawLink(source_x, source_y, target_x, target_y, link) {
     const svg = d3.select("svg");
     
     // Define two points
@@ -167,17 +297,37 @@ function drawLink(source_x, source_y, target_x, target_y) {
     const target = {x: target_x, y: target_y};
 
     // Create a link generator
-    const link = d3.linkHorizontal()
+    const linkGen = d3.linkHorizontal()
         .x(d => d.x)
         .y(d => d.y);
 
+    const tooltip = svg.append("text")
+        .attr("font-size", "14px")
+        .attr("fill", "black")
+        .attr("visibility", "hidden");
+
+    const opacityScale = d3.scaleLinear([0, 1], [0.05, 1.0]);
+    const cValue = link.c[2]; //TODO shouldn't be hardcoded (iteration step)
+
     // Append the path
     svg.append("path")
-        .attr("d", link({ source, target }))
+        .attr("d", linkGen({ source, target }))
         .attr("fill", "none")
         .attr("stroke", "black")
         .attr("stroke-width", 2)
-        .attr("opacity", 0.5); //TODO change based on contribution
+        .attr("opacity", opacityScale(cValue)) //TODO change based on contribution
+
+        .on("mousemove", function(event) {
+            const [x, y] = d3.pointer(event);
+
+            tooltip.attr("x", x + 10)  // Offset to avoid cursor overlap
+                .attr("y", y - 10)
+                .text(`${cValue}`)
+                .attr("visibility", "visible");
+        })
+        .on("mouseleave", function() {
+            tooltip.attr("visibility", "hidden");
+        });
 }
 
 function drawNode(cx, cy, nodeId, isInput,
@@ -220,7 +370,13 @@ function drawNode(cx, cy, nodeId, isInput,
 
 // drawNode(20, 50, 0);
 
-const capsnet = buildNetwork([3, 2], [2, 2]);
+const capsnet = new CapsuleNetwork(
+    [3, 2, 5], // capsule counts per layer
+    [2, 2, 3]  // capsule dimensions per layer
+);
+console.log(capsnet.network);
+capsnet.forward();
+// capsnet.dynamicRouting(3, 0);
 console.log(capsnet);
 
-drawNetwork(capsnet);
+drawNetwork(capsnet.network);
