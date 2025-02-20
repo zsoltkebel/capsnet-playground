@@ -1,0 +1,18 @@
+{
+  "type": "module",
+  "source": "index.html",
+  "devDependencies": {
+    "buffer": "^6.0.3",
+    "jest": "^29.7.0",
+    "parcel": "^2.13.3",
+    "process": "^0.11.10"
+  },
+  "scripts": {
+    "start": "parcel",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
+  },
+  "dependencies": {
+    "@tensorflow/tfjs": "^4.22.0",
+    "d3": "^7.9.0"
+  }
+}

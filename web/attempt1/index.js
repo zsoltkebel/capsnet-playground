@@ -1,4 +1,4 @@
-import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
+import * as d3 from "d3";
 
 let out_capsule_count = 2;
 let out_capsule_dimension = 2;
@@ -235,3 +235,5 @@ function drawLink(fromCapsule, toCapsule) {
         .attr("stroke-width", 2);
 
 }
+
+console.log("hello world");
