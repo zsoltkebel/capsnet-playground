@@ -1,9 +1,6 @@
 import * as tf from '@tensorflow/tfjs';
 
 class Capsule {
-    outputLinks = [];
-    inputLinks = [];
-    
     /**
     * Creates a capsule with id and values
     * @param {string} id 
@@ -12,6 +9,8 @@ class Capsule {
     constructor(id, values) {
         this.id = id;
         this.values = values;
+        this.outputLinks = [];
+        this.inputLinks = [];
     }
     
     /**
@@ -28,6 +27,10 @@ class Capsule {
     get dimension() {
         return this.values.size;
     }
+
+    get valuesSync() {
+        return this.values.arraySync();
+    }
 }
 
 class Link {
@@ -35,12 +38,20 @@ class Link {
     * 
     * @param {Capsule} source 
     * @param {Capsule} destination 
+    * @param {tf.Tensor2D} weights
     */
-    constructor(source, destination) {
+    constructor(source, destination, weights) {
         this.source = source;
         this.destination = destination;
-        this.weight = tf.randomNormal([destination.dimension, source.dimension]); //W_ij is a matrix of size (dest dim x source dim)
+        this.weight = weights; //W_ij is a matrix of size (dest dim x source dim)
         this.couplingCoefficient = []; // c_ij matrix value for this link (this is an array to show value at each iteration of the dynamic routing)
+    }
+
+    static random(source, destination) {
+        const weight = tf.randomNormal([destination.dimension, source.dimension]); //W_ij is a matrix of size (dest dim x source dim)
+
+        let link = new Link(source, destination, weight);
+        return link;
     }
     
     /**
@@ -76,20 +87,55 @@ export function squash(s) {
 export class CapsuleNetwork {
     /**
     * Create a new capsule network with randomised parameters
+    * @param {tf.Tensor2D[]} capsuleLayers 
+    * @param {tf.Tensor4D[]} weights 
+    */
+    constructor(capsuleLayers, weights, dynamicRoutingIterations = 3) {
+        const layers = capsuleLayers.length;
+
+        this.network = buildNetworkFromTensors(capsuleLayers, weights);
+        this.dynamicRoutingIterations = dynamicRoutingIterations;
+    }
+
+    /**
+    * Create a new capsule network with randomised parameters
     * @param {number[]} capsuleCounts Represents the number of capsules at each layer
     * @param {number[]} capsuleDimensions Represents the dimensions of the capsules at each layer
     */
-    constructor(capsuleCounts, capsuleDimensions) {
+    static random(capsuleCounts, capsuleDimensions) {
         if (capsuleCounts.length != capsuleDimensions.length) {
             throw new Error("Capsule counts and dimensions arrays must have the same number of elements");
         }
         
-        this.network = buildNetwork(capsuleCounts, capsuleDimensions);
+        let capsnet = new CapsuleNetwork([], []);
+        capsnet.network = buildNetwork(capsuleCounts, capsuleDimensions);
+        return capsnet;
     }
     
+    get layerCount() {
+        return this.network.length;
+    }
+
+    get allLinks() {
+        return this.network.map((layer) => {
+            return layer.map((capsule) => capsule.outputLinks).flat();
+        }).flat();
+    }
+
+    linkLayer(linkIndex) {
+        let total = 0;
+        for (let i = 0; i < this.network.length; i++) {
+            total += this.network[i].map(capsule => capsule.outputLinks).flat().length;
+            if (linkIndex < total) {
+                return i;
+            }
+        }
+        return this.network.length - 1;
+    }
+
     async forward() {
         for (let layer = 0; layer < this.network.length - 1; layer++) {
-            let output = this.dynamicRouting(3, layer);
+            let output = this.dynamicRouting(this.dynamicRoutingIterations, layer);
             
             // feed predictions to next capsules
             for (let j = 0; j < this.network[layer + 1].length; j++) {
@@ -154,6 +200,72 @@ export class CapsuleNetwork {
 }
 
 /**
+ * Get the 2D tensor representing the weight matrix of capsule i in layer l connecting to capsule j in layer l + 1
+ * @param {*} W 
+ * @param {*} i 
+ * @param {*} j 
+ * @param {*} i_dimension 
+ * @param {*} j_dimension 
+ * @returns 
+ */
+function getWeightMatrixForCapsule(W, i, j, i_dimension, j_dimension) {
+    const weightMatrix = tf.slice(W, [i, j, 0, 0], [1, 1, j_dimension, i_dimension]).squeeze();
+    return weightMatrix;
+}
+
+function buildNetworkFromTensors(capsuleLayers, weights) {
+    // Argument validation
+    // if (capsuleLayers.length != weights.length + 1) {
+    //     throw new Error("There should be one less number of weight tensors as capsule layers");
+    // }
+    // for (let i = 0; i < weights.length; i++) {
+    //     const [iCount, iDimension] = capsuleLayers[i].shape;
+    //     const [jCount, jDimension] = capsuleLayers[i + 1].shape;
+    //     const [wICount, wJCount, wJDimension, wIDimension] = weights[i].shape;
+
+    //     if (iCount != wICount || iDimension != wIDimension ||
+    //         jCount != wJCount || jDimension != wJDimension) {
+    //             throw new Error("Capsule layers and weight do not line up");
+    //         }
+    // }
+
+    const layers = capsuleLayers.length;
+
+    let network = []
+
+    for (let layerIndex = 0; layerIndex < layers; layerIndex++) {
+        let layer = [];
+        network.push(layer);
+        
+        const [capsuleCount, capsuleDimension] = capsuleLayers[layerIndex].shape;
+
+        for (let j = 0; j < capsuleCount; j++) {
+            const id = `capsule-${layerIndex}-${j}`;
+            const values = tf.gather(capsuleLayers[layerIndex], j);
+            let capsule = new Capsule(id, values);
+            layer.push(capsule);
+            
+            if (layerIndex >= 1) {
+                // Add links between previous and current layer
+                const [capsuleCountPreviousLayer, capsuleDimensionPreviousLayer] = capsuleLayers[layerIndex - 1].shape;
+                
+                for (let k = 0; k < capsuleCountPreviousLayer; k++) {
+                    let previousCapsule = network[layerIndex - 1][k];
+
+                    const capsuleWeight = getWeightMatrixForCapsule(weights[layerIndex - 1], k, j, capsuleDimensionPreviousLayer, capsuleDimension);
+
+                    let link = new Link(previousCapsule, capsule, capsuleWeight);
+                    previousCapsule.outputLinks.push(link);
+                    capsule.inputLinks.push(link);
+                }
+            }
+        }
+    }
+
+    return network;
+}
+
+/**
 * 
 * @param {number[]} capsuleCounts 
 * @param {number[]} capsuleDimensions 
@@ -176,7 +288,7 @@ function buildNetwork(capsuleCounts, capsuleDimensions) {
                 // add links to next layer
                 for (let k = 0; k < capsuleCounts[i - 1]; k++) {
                     let previousCapsule = network[i - 1][k];
-                    let link = new Link(previousCapsule, capsule);
+                    let link = Link.random(previousCapsule, capsule);
                     previousCapsule.outputLinks.push(link);
                     capsule.inputLinks.push(link);
                 }

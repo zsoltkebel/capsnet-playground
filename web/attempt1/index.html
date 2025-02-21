@@ -14,12 +14,27 @@
     <!-- <header>
         <h1 class="md-typescale-display-medium">Capsule Network</h1>
     </header> -->
-    
-    
-    <div id="network">
-        <svg id="svg"></svg>
+
+    <!-- Controls -->
+    <div>
+        <div>
+            <label>layers</label>
+            <button id="add-layer">add</button>
+            <button id="remove-layer">remove</button>
+        </div>
+        <div>
+            <label for="iteration">0. iteration</label>
+            <input type="range" id="iteration" name="volume" min="0" max="11" value="0"/>
+          </div>
     </div>
-    <div class="network">
+    
+    <!-- Capsule Network -->
+    <div id="network">
+        <svg id="svg">
+            <g id="links"></g>
+        </svg>
+    </div>
+    <!-- <div class="network">
         <div class="n-column">
             <h4>
                 <div class="ui-numHiddenLayers">
@@ -75,7 +90,7 @@
                 </div>
             </div>
         </div>
-    </div>
+    </div> -->
 
     <!-- <script src="index.js" type="module"></script> -->
     <script src="src/other.js" type="module"></script>
