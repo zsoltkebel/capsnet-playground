@@ -1,6 +1,7 @@
 import * as d3 from "d3";
 import { CapsuleNetwork } from "./capsnet";
 import * as tf from "@tensorflow/tfjs";
+import { clamp } from "./utils.js";
 
 const NETWORK_HEIGHT = 500;
 const NETWORK_WIDTH = 700;
@@ -9,6 +10,16 @@ const CAPSULE_HEIGHT = 30;
 const CAPSULE_WIDTH = 60;
 
 const RECT_SIZE = 50;
+
+let capsuleCounts = [3, 2, 5];
+let capsuleDimensions = [2, 2, 3];
+
+let capsnet = CapsuleNetwork.random(
+    capsuleCounts, // capsule counts per layer
+    capsuleDimensions  // capsule dimensions per layer
+);
+
+let iteration = 0;
 
 /**
 * 
@@ -28,6 +39,9 @@ function drawNetwork(network) {
     // Remove all div elements.
     d3.select("#network").selectAll("div.capsule").remove();
     d3.select("#network").selectAll("div.plus-minus-neurons").remove();
+    d3.select("#network")
+        .selectAll(".routing-info")
+        .remove();
     
     
     let capsuleCoordinates = {};
@@ -45,25 +59,18 @@ function drawNetwork(network) {
             let cy = nodeIndexScale(currentCapsule) + CAPSULE_HEIGHT / 2;
             
             capsuleCoordinates[capsule.id] = {
-                cx: cx,
-                cy: cy
+                x: cx,
+                y: cy
             };
             drawNode(cx, cy, capsule.id);
-            
-            // for (let currentLink = 0; currentLink < capsule.outputLinks.length; currentLink++) {
-            //     let iter = Math.min(2, Math.max(0, iteration - currentLayer * 3)); //TODO do not hardcode 3 iteration 
-            //     drawLink(
-            //         cx + CAPSULE_WIDTH / 2,
-            //         cy,
-            //         layerScale(currentLayer + 1) - CAPSULE_WIDTH / 2,
-            //         nodeIndexScale(currentLink) + CAPSULE_HEIGHT / 2,
-            //         capsule.outputLinks[currentLink],
-            //         iter
-            //     );
-            // }
         }
         
         addPlusMinusControl(cx, currentLayer + 1);
+
+        if (currentLayer < layerCount - 1) {
+            const routingI = getIterationIndexForLayer(currentLayer, iteration, 3); //TODO do not hardcode routing iterations count
+            drawRoutingInfo((cx + layerScale(currentLayer + 1)) / 2, routingI, 3);
+        }
     }
 
     updateLinks(capsuleCoordinates, capsnet.allLinks);
@@ -109,59 +116,67 @@ function draw() {
     });
 }
 
-function getCoordinatesOfCapsule(layer, index) {
-    
+/**
+ * Caluclates the routing iteration index for given layer in the network based on the overall iteration step.
+ * E.g. a network with 3 layers of capsules and r=3 iterations at each layer for dynamic routing has 6 overall iteration steps. At iterationIndex 4 the first layer of routing has finished all its iterations (0-2) and the second layer is at its first step (index 0).
+ * @param {*} layerIndex 
+ * @param {*} iterationIndex 
+ * @param {*} r 
+ * @returns 
+ */
+function getIterationIndexForLayer(layerIndex, iterationIndex, r) {
+    return Math.min(r - 1, Math.max(0, iterationIndex - layerIndex * r));
 }
 
 /**
  * 
- * @param {{[id: string]: {cx: number, cy: number}}} nodeCoordinates 
+ * @param {{[id: string]: {x: number, y: number}}} nodeCoordinates 
  * @param {Link[]} links 
  */
 function updateLinks(nodeCoordinates, links) {
     // Create a link generator
     const linkGen = d3.linkHorizontal()
-    .x(d => d.x)
-    .y(d => d.y);
+        .x(d => d.x)
+        .y(d => d.y);
 
     const tooltip = d3.select("svg").append("text")
-    .attr("font-size", "14px")
-    .attr("fill", "black")
-    .attr("visibility", "hidden");
+        .attr("font-size", "14px")
+        .attr("fill", "black")
+        .attr("visibility", "hidden");
 
-    const opacityScale = d3.scaleLinear([0, 1], [0.05, 1.0]);
-
+    // Data joining and basic positioning
     const linksD3 = d3.select("svg")
         .select("#links")
         .selectAll("path")
         .data(links)
         .join("path")
         .attr("d", (link) => {
-            // Define two points
-            const source = {x: nodeCoordinates[link.source.id].cx, y: nodeCoordinates[link.source.id].cy};
-            const target = {x: nodeCoordinates[link.destination.id].cx, y: nodeCoordinates[link.destination.id].cy};
-
-            return linkGen({ source, target });
+            return linkGen({
+                source: nodeCoordinates[link.source.id],
+                target: nodeCoordinates[link.destination.id]
+            });
         })
         .attr("fill", "none")
         .attr("stroke", "black")
-        .attr("stroke-width", 2)
+        .attr("stroke-width", 2);
+
+    // Opacity based on coupling coefficients
     linksD3
         .transition()
         .attr("opacity", (link, i) => {
-            const linkLayer = capsnet.linkLayer(i)
-            // console.log(linkLayer)
-            let iter = Math.min(2, Math.max(0, iteration - linkLayer * 3)); //TODO do not hardcode 3 iteration 
-            return d3.scaleLinear([0, 1 / link.source.outputLinks.length], [0.05, 1.0])(link.couplingCoefficient[iter]);
+            const routingI = getIterationIndexForLayer(link.source.layerIndex, iteration, capsnet.dynamicRoutingIterations);
+            const couplingCoefficient = link.couplingCoefficient[routingI];
+            return d3.scaleLinear([0, 1 / link.source.outputLinks.length], [0.05, 1.0])(couplingCoefficient); //TODO here you have the alternative choice of not normalising for the number of outpu links
         });
     
     linksD3
         .on("mousemove", function(event, d) {
+            const routingI = getIterationIndexForLayer(d.source.layerIndex, iteration, capsnet.dynamicRoutingIterations);
             const [x, y] = d3.pointer(event);
             
             tooltip.attr("x", x + 10)  // Offset to avoid cursor overlap
             .attr("y", y)
-            .text(`${d.couplingCoefficient[0].toFixed(4)}`) //TODO don't hardcode 0, it should be depending on the iteration slider
+            .text(`coupling coefficient: ${d.couplingCoefficient[routingI].toFixed(4)}`)
             .attr("visibility", "visible");
         })
         .on("mouseleave", function() {
@@ -172,81 +187,9 @@ function updateLinks(nodeCoordinates, links) {
         console.log();
 }
 
-/**
-* 
-* @param {*} source_x 
-* @param {*} source_y 
-* @param {*} target_x 
-* @param {*} target_y 
-* @param {Link} link 
-*/
-function drawLink(source_x, source_y, target_x, target_y, link, iteration) {
-    const svg = d3.select("svg");
-    
-    // Define two points
-    const source = {x: source_x, y: source_y};
-    const target = {x: target_x, y: target_y};
-    
-    // Create a link generator
-    const linkGen = d3.linkHorizontal()
-    .x(d => d.x)
-    .y(d => d.y);
-    
-    const tooltip = svg.append("text")
-    .attr("font-size", "14px")
-    .attr("fill", "black")
-    .attr("visibility", "hidden");
-    
-    const opacityScale = d3.scaleLinear([0, 1], [0.05, 1.0]);
-    const cValue = link.couplingCoefficient[iteration]; //TODO shouldn't be hardcoded (iteration step)
-    
-    // Append the path
-    svg.append("path")
-    .classed("link", true)
-    .attr("d", linkGen({ source, target }))
-    .attr("fill", "none")
-    .attr("stroke", "black")
-    .attr("stroke-width", 2)
-    .attr("opacity", opacityScale(cValue)) //TODO change based on contribution
-    
-    svg.append("path")
-    .attr("d", linkGen({ source, target }))
-    .attr("fill", "none")
-    .attr("stroke", "black")
-    .attr("opacity", 0.0)
-    .attr("stroke-width", 8)// thicker line for hover 
-    .on("mousemove", function(event) {
-        const [x, y] = d3.pointer(event);
-        
-        tooltip.attr("x", x + 10)  // Offset to avoid cursor overlap
-        .attr("y", y)
-        .text(`${cValue}`)
-        .attr("visibility", "visible");
-    })
-    .on("mouseleave", function() {
-        tooltip.attr("visibility", "hidden");
-    });
-}
-
-function drawNode(cx, cy, nodeId, isInput, container, node) {
+function drawNode(cx, cy, nodeId) {
     let x = cx - CAPSULE_WIDTH / 2;
     let y = cy - CAPSULE_HEIGHT / 2;
-    
-    // let nodeGroup = container.append("g")
-    //     .attr({
-    //     "class": "node",
-    //     "id": `node${nodeId}`,
-    //     "transform": `translate(${x},${y})`
-    //     });
-    
-    // // Draw the main rectangle.
-    // nodeGroup.append("rect")
-    //     .attr({
-    //     x: 0,
-    //     y: 0,
-    //     width: RECT_SIZE,
-    //     height: RECT_SIZE,
-    //     });
     
     // Draw the node's canvas.
     let div = d3.select("#network").insert("div", ":first-child")
@@ -261,6 +204,13 @@ function drawNode(cx, cy, nodeId, isInput, container, node) {
     // .html("c");
     
     
+}
+
+function drawRoutingInfo(horizontalOffset, i, allIterations) {
+    let div = d3.select("#network").append("div")
+        .classed("routing-info", true)
+        .style("left", `${horizontalOffset}px`)
+        .html(`Dynamic Routing Iteration: ${i + 1}/${allIterations}`);
 }
 
 function addPlusMinusControl(x, layerIdx) {
@@ -318,20 +268,6 @@ function addPlusMinusControl(x, layerIdx) {
     });
 }
 
-function clamp(min, max) {
-    return (value) => Math.min(max, Math.max(min, value));
-}
-
-let capsuleCounts = [3, 2, 5];
-let capsuleDimensions = [2, 2, 3];
-
-let capsnet = CapsuleNetwork.random(
-    capsuleCounts, // capsule counts per layer
-    capsuleDimensions  // capsule dimensions per layer
-);
-
-let iteration = 0;
-
 // draw();
 // drawNode(20, 20, 0);
 
@@ -340,6 +276,7 @@ let iteration = 0;
 window.addEventListener("resize", () => drawNetwork(capsnet.network));
 
 async function reset() {
+
     iterationControl();
 
     capsnet = CapsuleNetwork.random(

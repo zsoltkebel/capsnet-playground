@@ -28,6 +28,16 @@ class Capsule {
         return this.values.size;
     }
 
+    /**
+     * Calculates the layer index of this capsule.
+     * Counting starts from layer 0 which are all the capsules capsules that have no input links.
+     */
+    get layerIndex() {
+        return this.inputLinks
+            .map(link => link.source.layerIndex + 1)
+            .reduce((max, current) => Math.max(max, current), 0);
+    }
+
     get valuesSync() {
         return this.values.arraySync();
     }

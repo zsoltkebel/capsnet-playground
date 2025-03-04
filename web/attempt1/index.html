@@ -5,26 +5,39 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Capsule Network Visualiser</title>
     
-    <link rel="stylesheet" href="styles.css">
+
     <!-- <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500|Material+Icons" rel="stylesheet" type="text/css"> -->
     
     <!-- <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs/dist/tf.min.js"> </script> -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    <link rel="stylesheet" href="https://code.getmdl.io/1.3.0/material.indigo-pink.min.css">
+    <script defer src="https://code.getmdl.io/1.3.0/material.min.js"></script>
+
+    <link href="src/styles.css" rel="stylesheet">
+
 </head>
 <body>
     <!-- <header>
-        <h1 class="md-typescale-display-medium">Capsule Network</h1>
+        <h1>
+            Dynamic Routing
+            <span><h4>within Capsule Network</h4></span>
+        </h1>
     </header> -->
-
+    <div style="position: relative; height: min-content; width: 100%;">
     <!-- Controls -->
-    <div>
+    <div style="display: flex;">
         <div>
             <label>layers</label>
-            <button id="add-layer">add</button>
-            <button id="remove-layer">remove</button>
+            <button id="add-layer" class="mdl-button mdl-js-button mdl-button--icon">
+                <i class="material-icons">add</i>
+            </button>
+            <button id="remove-layer" class="mdl-button mdl-js-button mdl-button--icon">
+                <i class="material-icons">remove</i>
+            </button>
         </div>
         <div>
             <label for="iteration">0. iteration</label>
-            <input type="range" id="iteration" name="volume" min="0" max="11" value="0"/>
+            <input class="mdl-slider mdl-js-slider" type="range" id="iteration" name="volume" min="0" max="11" value="0"/>
           </div>
     </div>
     
@@ -34,6 +47,9 @@
             <g id="links"></g>
         </svg>
     </div>
+
+    
+</div>
     <!-- <div class="network">
         <div class="n-column">
             <h4>
