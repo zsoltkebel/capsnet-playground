@@ -82,3 +82,21 @@ header h1 {
 #network text {
     position: absolute;
 }
+
+canvas#input {
+    position: fixed; /* Fixes the position of the canvas relative to the viewport */
+    top: 20px;       /* Distance from the top of the viewport */
+    left: 20px;      /* Distance from the left of the viewport */
+    width: 280px;    /* Set a fixed size for the canvas */
+    height: 280px;   /* Maintain the 1:1 aspect ratio */
+    z-index: 1000;   /* Ensure the canvas is above other elements */
+}
+
+canvas#recunstruction {
+    position: fixed; /* Fixes the position of the canvas relative to the viewport */
+    top: 20px;       /* Distance from the top of the viewport */
+    right: 20px;      /* Distance from the left of the viewport */
+    width: 280px;    /* Set a fixed size for the canvas */
+    height: 280px;   /* Maintain the 1:1 aspect ratio */
+    z-index: 1000;   /* Ensure the canvas is above other elements */
+}
