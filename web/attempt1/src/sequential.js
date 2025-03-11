@@ -19,11 +19,6 @@ const defaultConfig = {
         capsuleDim: 16,
     },
 };
-function outputSize(inputSize, kernelSize, stride, padding) {
-    p = padding === 'valid' ? 0 : 1;
-    
-    return Math.floor((inputSize - kernelSize + 2 * p) / stride) + 1
-}
 
 function squash(vectors, axis = -1) {
     const squaredNorm = vectors.square().sum(axis, true);
@@ -74,7 +69,7 @@ class PrimaryCapsLayer extends tf.layers.Layer {
         this.trainable = true;
         
     }
-
+    
     build(inputShape) {
         // this.kernel = this.addWeight("kernel", [this.kernelSize, this.kernelSize, inputShape[3], this.capsuleDim * this.nChannels], 'float32', tf.initializers.glorotUniform())
         this.convLayer = tf.layers.conv2d({
@@ -113,14 +108,14 @@ class PrimaryCapsLayer extends tf.layers.Layer {
     }
 }
 
-class DigitCapsLayer extends tf.layers.Layer {
+class DigitCaps extends tf.layers.Layer {
+    static className = "DigitCaps";
+    
     constructor({capsuleNum = 10, capsuleDim = 16}) {
         super({ name: "DigitCaps" });
         this.capsuleNum = capsuleNum;
         this.capsuleDim = capsuleDim;
     }
-    
-    getClassName() { return 'DigitCaps'; }
     
     computeOutputShape(inputShape) {
         const batchSize = inputShape[0]
@@ -140,36 +135,38 @@ class DigitCapsLayer extends tf.layers.Layer {
         );
     }
     
-    call(input, kwargs) {
-        input = input[0]
-        
-        // console.log(input.shape);
-        let W = this.W.read().expandDims(0);
-        let u = input.expandDims(1).expandDims(-1);
-        // console.log("W " + W.shape);
-        // console.log("u " + u.shape);
-        
-        // Tiling 5-rank tensor doesnt have gradient implemented
-        // W = W.tile([u.shape[0], 1, 1, 1, 1]);
-        // u = u.tile([1, W.shape[1], 1, 1, 1]);
-        
-        // Instead of tile, create ones tensors for broadcasting:
-        const onesForW = tf.ones([u.shape[0], 1, 1, 1, 1]);  // shape [64,1,1,1,1]
-        const onesForU = tf.ones([1, W.shape[1], 1, 1, 1]);  // shape [1,10,1,1,1]
-
-        // Multiply by ones to replicate dimensions via broadcasting:
-        W = onesForW.mul(W); // W becomes [64, 10, 1152, 16, 8]
-        u = onesForU.mul(u); // u becomes [64, 10, 1152, 8, 1]
-
-        // console.log(W.shape);
-        // console.log(u.shape);
-        
-        // const uHat = tf.einsum('tldr,blr->btld', W, u)
-        const uHat = tf.matMul(W, u).squeeze([-1]);
-        
-        // Apply dynamic routing
-        const vJ = dynamicRouting(uHat, squash);
-        return vJ;
+    call(input) {
+        return tf.tidy(() => {
+            input = input[0]
+            
+            // console.log(input.shape);
+            let W = this.W.read().expandDims(0);
+            let u = input.expandDims(1).expandDims(-1);
+            // console.log("W " + W.shape);
+            // console.log("u " + u.shape);
+            
+            // Tiling 5-rank tensor doesnt have gradient implemented
+            // W = W.tile([u.shape[0], 1, 1, 1, 1]);
+            // u = u.tile([1, W.shape[1], 1, 1, 1]);
+            
+            // Instead of tile, create ones tensors for broadcasting:
+            const onesForW = tf.ones([u.shape[0], 1, 1, 1, 1]);  // shape [64,1,1,1,1]
+            const onesForU = tf.ones([1, W.shape[1], 1, 1, 1]);  // shape [1,10,1,1,1]
+            
+            // Multiply by ones to replicate dimensions via broadcasting:
+            W = onesForW.mul(W); // W becomes [64, 10, 1152, 16, 8]
+            u = onesForU.mul(u); // u becomes [64, 10, 1152, 8, 1]
+            
+            // console.log(W.shape);
+            // console.log(u.shape);
+            
+            // const uHat = tf.einsum('tldr,blr->btld', W, u)
+            const uHat = tf.matMul(W, u).squeeze([-1]);
+            
+            // Apply dynamic routing
+            const vJ = dynamicRouting(uHat, squash);
+            return vJ;
+        });
     }
     
     getConfig() {
@@ -180,99 +177,29 @@ class DigitCapsLayer extends tf.layers.Layer {
     }
 }
 
-class Decoder extends tf.layers.Layer {
-    constructor({ inputVectorLength = 16, inputCapsuleNum = 10, hiddenDim = 512 }) {
-        super({});
-        this.inputVectorLength = inputVectorLength;
-        this.inputCapsuleNum = inputCapsuleNum;
-        this.hiddenDim = hiddenDim;
-        
-        
-    }
-
-    build(inputShape) {
-        this.dense1 = tf.layers.dense({ units: this.hiddenDim, activation: 'relu' });
-        this.dense2 = tf.layers.dense({ units: this.hiddenDim * 2, activation: 'relu' });
-        this.dense3 = tf.layers.dense({ units: 28 * 28, activation: 'sigmoid' });
-    }
-    
-    computeOutputShape(inputShape) {
-        const batchSize = inputShape[0]
-        return [batchSize, 28, 28, 1];
-    }
-
-    call(inputs) {
-        // console.log(Array.isArray(inputs))
-
-        // If the inputs is only one tensor (capsule outputs), we don't need to mask with labels
-        const capsOutput = inputs[0]; // Single tensor with shape [batchSize, 10, 16]
-        // console.log(inputs.shape);
-
-        // Compute vector lengths (capsule activations) to identify the most likely digit for each sample
-        const vectorLengths = tf.sqrt(tf.sum(tf.square(capsOutput), -1)); // Shape: [batchSize, 10]
-        
-        // Apply softmax to the vector lengths to get the probability of each capsule
-        const softmaxClasses = tf.softmax(vectorLengths, -1); // Shape: [batchSize, 10]
-        
-        // Get the index of the most probable capsule (i.e., the class with the maximum length)
-        const maxCapsIndex = tf.argMax(softmaxClasses, 1); // Shape: [batchSize]
-        
-        // Create a one-hot mask based on the predicted class (most probable capsule)
-        const oneHotMask = tf.oneHot(maxCapsIndex, this.inputCapsuleNum); // Shape: [batchSize, 10]
-        // oneHotMask.print()
-
-        // Mask the capsule outputs by selecting the most likely capsule's activations
-        const maskedCaps = capsOutput.mul(oneHotMask.expandDims(2)); // Shape: [batchSize, 10, 16]
-
-        // Flatten the capsule outputs for input into the decoder network
-        const flattened = maskedCaps.reshape([-1, this.inputCapsuleNum * this.inputVectorLength]); // Flattened shape: [batchSize, 160]
-
-        // Pass through the decoder layers
-        const reconstructed = this.dense1.apply(flattened);
-        const reconstructed2 = this.dense2.apply(reconstructed);
-        const reconstructed3 = this.dense3.apply(reconstructed2);
-        // renderRecunstruction(reconstructed3.slice([0, 0, 0, 0], [1, 28, 28, 1]).squeeze(0).mul(tf.scalar(255)), 8);
-        // console.log(reconstructed3.shape)
-        // throw new Error()
-        return reconstructed3.reshape([-1, 28, 28, 1]);
-    }
-    
-    getClassName() {
-        return 'Decoder';
-    }
-}
-
-
-// function marginLoss(yTrue, yPred, mPlus = 0.9, mMinus = 0.1, lambda = 0.5) {
-//     const vNorm = yPred.norm(2, -1, true); // Capsule output norms
-//     const left = tf.maximum(0, mPlus - vNorm).square();
-//     const right = tf.maximum(0, vNorm - mMinus).square();
-//     const marginLoss = yTrue.mul(left).add(lambda * yTrue.neg().add(1).mul(right));
-//     return marginLoss.sum(1).mean();
-// }
 
 function marginLoss(yTrue, yPred, mPlus=0.9, mMinus=0.1, lam=0.5) {
-        // yTrue: [batchSize, 10]
-        // yPred: [batchSize, 10, 16]
-
-        // Compute the length of the capsule output vectors to (batch_size, num_capsules)
-        const v_c = tf.sqrt(tf.sum(tf.square(yPred), -1))
-
-        // Calculate the margin loss components
-        const left = tf.square(tf.maximum(tf.scalar(0), tf.scalar(mPlus).sub(v_c)));
-        const right = tf.square(tf.maximum(tf.scalar(0), v_c.sub(tf.scalar(mMinus))));
-        // console.log("left " + left)
-        // console.log("right " + right)
-
-        // const oneHot = tf.oneHot(tf.cast(yTrue, 'int32'), 10);
-        // Combine the margin loss components using the labels
-        let margin_loss = yTrue.mul(left).add(tf.scalar(lam).mul(tf.scalar(1).sub(yTrue).mul(right)));
-
-        // Sum over capsulesto get shape (batch_size) and average over batches
-        margin_loss = tf.sum(margin_loss, 1)
-        margin_loss = tf.mean(margin_loss)
-
-        return margin_loss
+    // yTrue: [batchSize, 10]
+    // yPred: [batchSize, 10, 16]
+    
+    // Compute the length of the capsule output vectors to (batch_size, num_capsules)
+    const v_c = tf.sqrt(tf.sum(tf.square(yPred), -1))
+    
+    // Calculate the margin loss components
+    const left = tf.square(tf.maximum(tf.scalar(0), tf.scalar(mPlus).sub(v_c)));
+    const right = tf.square(tf.maximum(tf.scalar(0), v_c.sub(tf.scalar(mMinus))));
+    // console.log("left " + left)
+    // console.log("right " + right)
+    
+    // const oneHot = tf.oneHot(tf.cast(yTrue, 'int32'), 10);
+    // Combine the margin loss components using the labels
+    let margin_loss = yTrue.mul(left).add(tf.scalar(lam).mul(tf.scalar(1).sub(yTrue).mul(right)));
+    
+    // Sum over capsulesto get shape (batch_size) and average over batches
+    margin_loss = tf.sum(margin_loss, 1)
+    margin_loss = tf.mean(margin_loss)
+    
+    return margin_loss
 }
 
 function reconstructionLoss(yTrue, yPred) {
@@ -284,22 +211,22 @@ function reconstructionLoss(yTrue, yPred) {
         // console.log(img.shape)
         // img.print()
         renderInput(img, 8);
-
+        
         const rec = yPred.slice([i, 0, 0, 0], [1, 28, 28, 1]).squeeze(0).mul(tf.scalar(255));
         renderRecunstruction(rec, 8);
     }
     // throw new Error()
-
+    
     return yTrue.sub(yPred).square().mean();
 }
 
 function customAccuracy(yTrue, yPred) {
     // Convert logits or predictions to the predicted class (argMax for multi-class)
     const v_c = tf.sqrt(tf.sum(tf.square(yPred), -1))
-
+    
     const predictedClasses = tf.argMax(v_c, axis=1); // Predicted class from the model output
     const trueClasses = tf.argMax(yTrue, axis=1); // True class labels (one-hot encoded)
-
+    
     // Compare the predicted class with the true class
     const correctPredictions = predictedClasses.equal(trueClasses); // Returns a boolean tensor
     
@@ -307,74 +234,66 @@ function customAccuracy(yTrue, yPred) {
     return accuracy;
 }
 
-class CapsuleLayer extends tf.layers.Layer {
-    constructor() {
-        super({});
-    }
-
-    computeOutputShape(inputShape) {
-        return [inputShape[0], 10*16];
-    }
-
-    // Define the behavior of the layer, including vector lengths and softmax operations
-    call(inputs) {
-        const capsuleOutput = inputs[0]; // Input tensor of shape [batchSize, 10, 16]
-
-        // Compute the vector lengths (capsule activations) to identify the most likely digit for each sample
-        const vectorLengths = tf.norm(capsuleOutput, "euclidean", -1); // Shape: [batchSize, 10]
-        
-        // Apply softmax to the vector lengths to get the probability of each capsule
-        const softmaxClasses = tf.softmax(vectorLengths, -1); // Shape: [batchSize, 10]
-        
-        // Get the index of the most probable capsule (i.e., the class with the maximum length)
-        const maxCapsIndex = tf.argMax(softmaxClasses, 1); // Shape: [batchSize]
-        
-        // Create a one-hot mask based on the predicted class (most probable capsule)
-        const oneHotMask = tf.oneHot(maxCapsIndex, 10); // Shape: [batchSize, 10]
-        
-        // Mask the capsule outputs by selecting the most likely capsule's activations
-        const maskedCaps = capsuleOutput.mul(oneHotMask.expandDims(2)); // Shape: [batchSize, 10, 16]
-
-        // Flatten the capsule outputs for input into the decoder network
-        const flattened = maskedCaps.reshape([-1, 10 * 16]); // Flattened shape: [batchSize, 160]
-
-        return flattened;
+/**
+ * Mask a Tensor of shape [None, numCapsule, dimCapsule] by selecting the capsule with the maximum length.
+ * All other capsules are set to zero except for the selected.
+ * The masked Tensor is then flattened.
+ */
+class Mask extends tf.layers.Layer {
+    static className = "Mask";
+    
+    constructor(config = {}) {
+        super(config);
     }
     
-    getClassName() {
-        return 'CapsuleLayer';
+    computeOutputShape(inputShape) {
+        return [inputShape[0], inputShape[1]*inputShape[2]];
+    }
+    
+    call(inputs) {
+        return tf.tidy(() => {
+            const capsuleOutput = inputs[0]; 
+            
+            // Compute the vector lengths (capsule activations) to identify the most likely digit for each sample
+            const vectorLengths = tf.norm(capsuleOutput, "euclidean", -1); // Shape: [batchSize, 10]
+            
+            // Create a one-hot mask based on the predicted class (most probable capsule)
+            const mask = tf.oneHot(tf.argMax(vectorLengths, 1), vectorLengths.shape[1]).expandDims(2); // Shape: [batchSize, 10, 1]
+            
+            // Mask the capsule outputs by selecting the most likely capsule's activations and flatten the tensor
+            return tf.layers.flatten().apply(capsuleOutput.mul(mask)); // Shape: [batchSize, 10, 16]
+        });
     }
 }
 
-
-function createDecoderModel() {
-    //TODO parameterise
-    const input = tf.input({ shape: [10, 16] }); // Define input shape (32-dimensional vector)
-  
-    // Compute vector lengths (capsule activations) to identify the most likely digit for each sample
-    const transformed = new CapsuleLayer().apply(input);
-
-    // Define a couple of layers for the submodel
-    const dense1 = tf.layers.dense({ units: 512, activation: 'relu' }).apply(transformed);
-    const dense2 = tf.layers.dense({ units: 512 * 2, activation: 'relu' }).apply(dense1);
-    const dense3 = tf.layers.dense({ units: 28 * 28, activation: 'sigmoid' }).apply(dense2);
-  
-    const reshaped = tf.layers.reshape({ targetShape: [28, 28, 1]}).apply(dense3);
-
-    // Create the submodel and return it
-    const submodel = tf.model({ inputs: input, outputs: reshaped, name: "Decoder" });
-    submodel.summary();
-    return submodel;
+/**
+ * Create the Decoder model according to the description in "Dynamic Linking Between Capsules" paper.
+ * @param {*} param0 
+ * @returns 
+ */
+function createDecoderModelSeq({ capsules=10, dimensions=16, imageSize=28, imageChannels=1 } = {}) {
+    return tf.sequential({
+        layers: [
+            new Mask({ inputShape: [capsules, dimensions], name: "MeskedDigitCaps" }),
+            tf.layers.dense({ units: 512, activation: 'relu', name: "FC1_ReLU" }),
+            tf.layers.dense({ units: 512 * 2, activation: 'relu', name: "FC2_ReLU" }),
+            tf.layers.dense({ units: 28 * 28, activation: 'sigmoid', name: "FC3_Sigmoid" }),
+            tf.layers.reshape({ targetShape: [imageSize, imageSize, imageChannels]})
+        ],
+        name: "Decoder",
+    });
 }
 
-function createCapsNet(
-    primaryCaps = {
+
+function createCapsNet({
+    primaryCapsOptions = {
         dimensions: 8,
         nChannels: 1,
         kernelSize: 9,
         strides: 4,
-    }
-) {
+    },
+    decoder=createDecoderModelSeq(),
+} = {}) {
     const input = tf.input({ shape: [28, 28, 1] });
     
     // ReLU Conv1 Layer
@@ -383,66 +302,76 @@ function createCapsNet(
         kernelSize: 9,
         strides: 1,
         padding: 'valid',
-        activation: 'relu'
+        activation: 'relu',
+        name: "ReLU_Conv1",
     }).apply(input);
     
-    // PrimaryCaps Layer (Assuming you have this custom layer defined)
-    // const primaryCapsLayer = new PrimaryCapsLayer({
-    //     capsuleDim: 8,
-    //     nChannels: 2,
-    //     kernelSize: 9,
-    //     strides: 4,
-    //     padding: 'valid'
-    // }).apply(conv1);
-    const primaryCapsOutput = tf.layers.conv2d({
-        filters: primaryCaps.dimensions * primaryCaps.nChannels,
-        kernelSize: primaryCaps.kernelSize,
-        strides: primaryCaps.strides,
+    const primaryCaps = tf.layers.conv2d({
+        filters: primaryCapsOptions.dimensions * primaryCapsOptions.nChannels,
+        kernelSize: primaryCapsOptions.kernelSize,
+        strides: primaryCapsOptions.strides,
         name: "PrimaryCaps",
         // padding: 'valid'
     }).apply(conv1);
-
-    const height = primaryCapsOutput.shape[1];
-    const width = primaryCapsOutput.shape[2];
-
+    
+    const height = primaryCaps.shape[1];
+    const width = primaryCaps.shape[2];
+    
     const primaryCapsReshaped = tf.layers.reshape({
-        targetShape: [height * width * primaryCaps.nChannels, primaryCaps.dimensions],
-    }).apply(primaryCapsOutput)
+        targetShape: [height * width * primaryCapsOptions.nChannels, primaryCapsOptions.dimensions],
+    }).apply(primaryCaps);
     
     // DigitCaps Layer (Assuming you have this custom layer defined)
-    const digitCapsLayer = new DigitCapsLayer({
+    const digitCaps = new DigitCaps({
         numCapsules: 10,  // Number of classes
         capsuleDim: 16,    // Dimensionality of each capsule
     }).apply(primaryCapsReshaped);
-
-    // Decoder for image reconstruction
-    // const decoder = new Decoder({
-    //     inputVectorLength: 16,
-    //     inputCapsuleNum: 10,
-    //     hiddenDim: 512
-    // }).apply(digitCapsLayer);
-    const decoder = createDecoderModel().apply(digitCapsLayer);
+    
+    const reconstructions = decoder.apply(digitCaps);
     
     // Create the model
-    const model = tf.model({
+    const capsnet = tf.model({
         inputs: input,
-        outputs: [digitCapsLayer, decoder],  // Output two things: the capsule output and the reconstructed image
+        outputs: [digitCaps, reconstructions],  // Output two things: the capsule output and the reconstructed image
+        name: "CapsNet",
     });
+    
+    console.log(`Model: ${capsnet.name}`);
+    capsnet.summary();
 
-    model.summary();
+    console.log(`Model: ${decoder.name}`);
+    decoder.summary();
 
-    return model;
+    return [capsnet, decoder];
     
 }
 
+// Register custom layer classes for saving/loading
+tf.serialization.registerClass(DigitCaps);
+tf.serialization.registerClass(Mask);
+
 async function main() {
-    const model = createCapsNet();
+    let capsnet, decoder;
+    try {
+        capsnet = await tf.loadLayersModel('indexeddb://capsnet');
+        decoder = capsnet.getLayer("Decoder");
+        console.log("Loaded CapsNet from browser cache");
+    } catch {
+        [capsnet, decoder] = createCapsNet();
+    }
+    // const savedDecoder = await tf.loadLayersModel('indexeddb://decoder');
+    
+    const model = capsnet;
+    // const [model, decoder] = createCapsNet({decoder: savedDecoder});
+    // let [model, decoder] = createCapsNet();
+
     const data = new MNISTData();
     await data.load();
     const { trainDataset, testDataset } = data.createDataset(64, 30000, 0.8);
+        
     
     console.log("Model output names:", model.outputNames);
-
+    
     model.compile({
         optimizer: tf.train.adam(),
         loss: {
@@ -451,7 +380,7 @@ async function main() {
         },
         lossWeights: {
             'DigitCaps': 1.0, // Give full weight to classification loss
-            'Decoder': 0.005, // Lower weight for reconstruction loss original: 0.0005
+            'Decoder': 0.0005, // Lower weight for reconstruction loss original: 0.0005
         },
         metrics: {
             'DigitCaps': [customAccuracy],   // Accuracy for classification output
@@ -461,7 +390,7 @@ async function main() {
     });
     
     await model.fitDataset(trainDataset, {
-        epochs: 10,
+        epochs: 2,
         validationData: testDataset, // Optional validation dataset
         callbacks: {
             onEpochEnd: async (epoch, logs) => {
@@ -471,11 +400,22 @@ async function main() {
                 console.log(`  Reconstruction Loss = ${logs.decoder_Decoder1}`);
             },
             // onBatchEnd: async (batch, logs) => {
-            //     console.log(`Batch ${batch + 1}: Loss = ${logs.loss}, Accuracy = ${logs.digit_caps_DigitCaps2_customAccuracy}`);
+                //     console.log(`Batch ${batch + 1}: Loss = ${logs.loss}, Accuracy = ${logs.digit_caps_DigitCaps2_customAccuracy}`);
             // }
         },
     });
-
+    
+    // save decoder
+    // await decoder.save('localstorage://decoder');
+    if (window.confirm("Do you want to save the model?")) {
+        await model.save('indexeddb://capsnet');
+        await model.save('downloads://capsnet');
+        await decoder.save('indexeddb://decoder');
+    }
+    // const saveResult = await decoder.save('downloads://decoder');
+    // console.log(saveResult);
+    // await decoder.save('file:///Users/zsoltkebel/Developer/university_projects/capsnet_demo/decoder');
+    
     const [capsout, reconstruction] = model.predict(data.sample(0).image.expandDims(0));
     console.log(reconstruction.shape);
     reconstruction.print();
@@ -504,9 +444,9 @@ async function renderImage(image, label, canvas) {
     // const canvas = document.createElement('canvas');
     // document.body.appendChild(canvas);
     const ctx = canvas.getContext('2d');
-
+    
     ctx.imageSmoothingEnabled = false;
-
+    
     // Set the canvas size to match the image (28x28 pixels)
     canvas.width = 28;
     canvas.height = 28;
@@ -521,7 +461,7 @@ async function renderImage(image, label, canvas) {
         imageData.data[i * 4 + 2] = pixels[i]; // Blue channel (greyscale image)
         imageData.data[i * 4 + 3] = 255;       // Alpha channel (fully opaque)
     }
-
+    
     // Put the image data on the canvas
     ctx.putImageData(imageData, 0, 0);
 }
@@ -531,7 +471,7 @@ async function renderRandomImage(mnistData) {
     
     // Get a random index from the dataset
     const randomIndex = Math.floor(Math.random() * mnistData.labels.shape[0]);
-
+    
     // Get the corresponding image tensor
     const { image, oneHot, label } = mnistData.sample(randomIndex);
     console.log("label: " + label);
@@ -544,7 +484,7 @@ async function renderRandomImage(mnistData) {
     const canvas = document.createElement('canvas');
     document.body.appendChild(canvas);
     const ctx = canvas.getContext('2d');
-
+    
     // Set the canvas size to match the image (28x28 pixels)
     canvas.width = 28;
     canvas.height = 28;
@@ -559,7 +499,7 @@ async function renderRandomImage(mnistData) {
         imageData.data[i * 4 + 2] = pixels[i]; // Blue channel (greyscale image)
         imageData.data[i * 4 + 3] = 255;       // Alpha channel (fully opaque)
     }
-
+    
     // Put the image data on the canvas
     ctx.putImageData(imageData, 0, 0);
 }
