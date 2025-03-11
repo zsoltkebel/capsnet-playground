@@ -181,7 +181,9 @@ class DigitCaps extends tf.layers.Layer {
 function marginLoss(yTrue, yPred, mPlus=0.9, mMinus=0.1, lam=0.5) {
     // yTrue: [batchSize, 10]
     // yPred: [batchSize, 10, 16]
-    
+    // console.log("yTrue", yTrue.shape)
+    // console.log("yPred", yPred.shape)
+
     // Compute the length of the capsule output vectors to (batch_size, num_capsules)
     const v_c = tf.sqrt(tf.sum(tf.square(yPred), -1))
     
@@ -193,29 +195,16 @@ function marginLoss(yTrue, yPred, mPlus=0.9, mMinus=0.1, lam=0.5) {
     
     // const oneHot = tf.oneHot(tf.cast(yTrue, 'int32'), 10);
     // Combine the margin loss components using the labels
-    let margin_loss = yTrue.mul(left).add(tf.scalar(lam).mul(tf.scalar(1).sub(yTrue).mul(right)));
+    let margin_loss = yTrue.mul(left).add(tf.scalar(lam).mul(tf.scalar(1).sub(yTrue)).mul(right));
     
-    // Sum over capsulesto get shape (batch_size) and average over batches
+    // Sum over capsules to get shape (batch_size) and average over batches
     margin_loss = tf.sum(margin_loss, 1)
     margin_loss = tf.mean(margin_loss)
-    
+    // console.log(margin_loss.arraySync());
     return margin_loss
 }
 
 function reconstructionLoss(yTrue, yPred) {
-    // console.log(yTrue.shape)
-    // console.log(yPred.shape)
-    const batch_size = yTrue.shape[0]
-    for (let i = 0; i < batch_size; i++) {
-        const img = yTrue.slice([i, 0, 0, 0], [1, 28, 28, 1]).squeeze(0).mul(tf.scalar(255));
-        // console.log(img.shape)
-        // img.print()
-        renderInput(img, 8);
-        
-        const rec = yPred.slice([i, 0, 0, 0], [1, 28, 28, 1]).squeeze(0).mul(tf.scalar(255));
-        renderRecunstruction(rec, 8);
-    }
-    // throw new Error()
     
     return yTrue.sub(yPred).square().mean();
 }
@@ -272,6 +261,7 @@ class Mask extends tf.layers.Layer {
  * @returns 
  */
 function createDecoderModelSeq({ capsules=10, dimensions=16, imageSize=28, imageChannels=1 } = {}) {
+    //TODO perhaps decoder could get an extra tensor or dimension for true labels of the image??
     return tf.sequential({
         layers: [
             new Mask({ inputShape: [capsules, dimensions], name: "MeskedDigitCaps" }),
@@ -364,12 +354,14 @@ async function main() {
     const model = capsnet;
     // const [model, decoder] = createCapsNet({decoder: savedDecoder});
     // let [model, decoder] = createCapsNet();
-
+    const BATCH_SIZE = 64;
+    const BATCHES = 1;
     const data = new MNISTData();
     await data.load();
-    const { trainDataset, testDataset } = data.createDataset(64, 30000, 0.8);
-        
+    const { trainDataset, testDataset } = data.createDataset(BATCH_SIZE, 30000, 0.8);
     
+    console.log(trainDataset.size);
+
     console.log("Model output names:", model.outputNames);
     
     model.compile({
@@ -399,9 +391,13 @@ async function main() {
                 console.log(`  Classification Loss = ${logs.digit_caps_DigitCaps2}`);  // Margin loss
                 console.log(`  Reconstruction Loss = ${logs.decoder_Decoder1}`);
             },
-            // onBatchEnd: async (batch, logs) => {
-                //     console.log(`Batch ${batch + 1}: Loss = ${logs.loss}, Accuracy = ${logs.digit_caps_DigitCaps2_customAccuracy}`);
-            // }
+            onBatchEnd: async (batch, logs) => {
+                const progressBar = d3.select("progress").node();
+                progressBar.value = batch;
+                progressBar.max = trainDataset.size;
+
+                console.log(`Batch ${batch + 1}: Loss = ${logs.loss}, Accuracy = ${logs.digit_caps_DigitCaps2_customAccuracy}`);
+            },
         },
     });
     
@@ -421,7 +417,7 @@ async function main() {
     reconstruction.print();
     renderRecunstruction(reconstruction.slice([0, 0, 0, 0], [1, 28, 28, 1]).squeeze(0).mul(tf.scalar(255)), 8);
 }
-main();
+// main();
 
 async function renderRecunstruction(image, label) {
     const canvas = d3.select("canvas#recunstruction").node();
@@ -506,3 +502,5 @@ async function renderRandomImage(mnistData) {
 
 // const mnistData = new MNISTData();
 // renderRandomImage(mnistData);
+
+export { createDecoderModelSeq, createCapsNet, marginLoss, reconstructionLoss, customAccuracy };

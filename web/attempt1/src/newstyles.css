@@ -1,0 +1,81 @@
+body {
+    display: flex;
+    flex-direction: column; /* Arrange child elements vertically */
+    align-items: center; /* Optional: centers content horizontally */
+}
+
+#model {
+    position: relative;
+    min-width: 1200px;
+    min-height: 390px;
+    width: 100%;
+    background-color: whitesmoke;
+}
+
+#controls {
+    /* display: block; */
+    /* top: 100%; */
+    width: 100%;
+    /* background-color: aliceblue; */
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+canvas {
+    position: absolute;
+    border: 2px solid black;
+    border-radius: 2px;
+    width: 280px;
+    height: 280px;
+    top: 45px;
+    transition: transform 0.2s ease;
+    background-color: black;
+}
+
+canvas#input-image {
+    left: 20px;
+    cursor: pointer;
+}
+
+canvas#input-image:hover {
+    transform: scale(0.98);
+    opacity: 0.7; /* Canvas fades to 70% opacity */
+}
+
+canvas#reconstruction-image {
+    right: 20px;
+}
+
+canvas#input-image:active {
+    transform: scale(0.95); /* Shrinks canvas to 90% */
+}
+
+.disabled {
+    pointer-events: none;
+}
+
+.canvas-label {
+    width: 280px;
+    text-align: left;
+    padding-left: 5px;
+    box-sizing: border-box;
+    top: 20px;
+}
+
+.losses-container {
+    position: absolute;
+    width: 280px;
+    right: 20px;
+    top: 330px;
+    padding: 5px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    text-align: right;
+}
+
+.digits {
+    font-variant-numeric: tabular-nums;
+    color: black;
+    font-weight: bold;
+}
