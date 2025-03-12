@@ -1,6 +1,7 @@
 import * as tf from '@tensorflow/tfjs';
 import {MNISTData} from "./mnist_data.js"
 import * as d3 from "d3";
+import { updateDigitCaps, updateDynamicRoutingLinks } from './visualise';
 
 const defaultConfig = {
     "ReLU Conv1": {
@@ -38,6 +39,7 @@ function dynamicRouting(uHat, squash, iterations = 3) {
     const inputNumCaps = uHat.shape[2];
     
     let bIJ = tf.zeros([batchSize, numCaps, inputNumCaps, 1]);
+    let cIJs = []
     let vJ;
     
     for (let iteration = 0; iteration < iterations; iteration++) {
@@ -45,7 +47,7 @@ function dynamicRouting(uHat, squash, iterations = 3) {
         const transposedLogits = bIJ.transpose([0, 2, 3, 1]);  // Have to transpose tensor so that capsule dimension is last because osftmax only supports that
         const softmaxOutput = tf.softmax(transposedLogits, -1);  // Softmax along the capsule dimension
         const cJI = softmaxOutput.transpose([0, 3, 1, 2]);
-        
+        cIJs.push(cJI.squeeze(-1));
         
         const sJ = cJI.mul(uHat).sum(2, true);  // Weighted sum
         vJ = squash(sJ);  // vJ.shape: [batchSize, numCaps, 1, dimCaps]
@@ -56,7 +58,11 @@ function dynamicRouting(uHat, squash, iterations = 3) {
         }
     }
     
-    return vJ.squeeze([2]);
+    vJ = vJ.squeeze([2]);
+    // updateDigitCaps(vJ);
+    updateDynamicRoutingLinks(cIJs[2]);
+
+    return vJ;
 }
 
 class PrimaryCapsLayer extends tf.layers.Layer {
@@ -183,10 +189,11 @@ function marginLoss(yTrue, yPred, mPlus=0.9, mMinus=0.1, lam=0.5) {
     // yPred: [batchSize, 10, 16]
     // console.log("yTrue", yTrue.shape)
     // console.log("yPred", yPred.shape)
-
+    
     // Compute the length of the capsule output vectors to (batch_size, num_capsules)
     const v_c = tf.sqrt(tf.sum(tf.square(yPred), -1))
-    
+    // const v_c = yPred;
+
     // Calculate the margin loss components
     const left = tf.square(tf.maximum(tf.scalar(0), tf.scalar(mPlus).sub(v_c)));
     const right = tf.square(tf.maximum(tf.scalar(0), v_c.sub(tf.scalar(mMinus))));
@@ -212,6 +219,10 @@ function reconstructionLoss(yTrue, yPred) {
 function customAccuracy(yTrue, yPred) {
     // Convert logits or predictions to the predicted class (argMax for multi-class)
     const v_c = tf.sqrt(tf.sum(tf.square(yPred), -1))
+    // const v_c = yPred
+    // console.log(yTrue)
+
+    // console.log(yPred)
     
     const predictedClasses = tf.argMax(v_c, axis=1); // Predicted class from the model output
     const trueClasses = tf.argMax(yTrue, axis=1); // True class labels (one-hot encoded)
@@ -223,11 +234,22 @@ function customAccuracy(yTrue, yPred) {
     return accuracy;
 }
 
+class Norm extends tf.layers.Layer {
+    static className = "Norm";
+
+    computeOutputShape(inputShape) {
+        return [inputShape[0], inputShape[1]];
+    }
+
+    call(inputs) {
+        return tf.norm(inputs[0], "euclidean", -1);
+    }
+}
 /**
- * Mask a Tensor of shape [None, numCapsule, dimCapsule] by selecting the capsule with the maximum length.
- * All other capsules are set to zero except for the selected.
- * The masked Tensor is then flattened.
- */
+* Mask a Tensor of shape [None, numCapsule, dimCapsule] by selecting the capsule with the maximum length.
+* All other capsules are set to zero except for the selected.
+* The masked Tensor is then flattened.
+*/
 class Mask extends tf.layers.Layer {
     static className = "Mask";
     
@@ -256,10 +278,10 @@ class Mask extends tf.layers.Layer {
 }
 
 /**
- * Create the Decoder model according to the description in "Dynamic Linking Between Capsules" paper.
- * @param {*} param0 
- * @returns 
- */
+* Create the Decoder model according to the description in "Dynamic Linking Between Capsules" paper.
+* @param {*} param0 
+* @returns 
+*/
 function createDecoderModelSeq({ capsules=10, dimensions=16, imageSize=28, imageChannels=1 } = {}) {
     //TODO perhaps decoder could get an extra tensor or dimension for true labels of the image??
     return tf.sequential({
@@ -278,7 +300,7 @@ function createDecoderModelSeq({ capsules=10, dimensions=16, imageSize=28, image
 function createCapsNet({
     primaryCapsOptions = {
         dimensions: 8,
-        nChannels: 1,
+        nChannels: 2,
         kernelSize: 9,
         strides: 4,
     },
@@ -317,6 +339,8 @@ function createCapsNet({
         capsuleDim: 16,    // Dimensionality of each capsule
     }).apply(primaryCapsReshaped);
     
+    // const digitCapsNorm = new Norm().apply(digitCaps);
+    
     const reconstructions = decoder.apply(digitCaps);
     
     // Create the model
@@ -328,10 +352,10 @@ function createCapsNet({
     
     console.log(`Model: ${capsnet.name}`);
     capsnet.summary();
-
+    
     console.log(`Model: ${decoder.name}`);
     decoder.summary();
-
+    
     return [capsnet, decoder];
     
 }
@@ -361,7 +385,7 @@ async function main() {
     const { trainDataset, testDataset } = data.createDataset(BATCH_SIZE, 30000, 0.8);
     
     console.log(trainDataset.size);
-
+    
     console.log("Model output names:", model.outputNames);
     
     model.compile({
@@ -395,7 +419,7 @@ async function main() {
                 const progressBar = d3.select("progress").node();
                 progressBar.value = batch;
                 progressBar.max = trainDataset.size;
-
+                
                 console.log(`Batch ${batch + 1}: Loss = ${logs.loss}, Accuracy = ${logs.digit_caps_DigitCaps2_customAccuracy}`);
             },
         },

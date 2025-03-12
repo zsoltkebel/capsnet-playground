@@ -79,3 +79,18 @@ canvas#input-image:active {
     color: black;
     font-weight: bold;
 }
+
+#model svg {
+    width: 100%;
+    min-height: 390;
+}
+
+.capsule {
+    padding: 0 5px 0 5px;
+    transform: translate(-50%, -50%);
+}
+
+.capsule-selected {
+    border: 2px solid black;
+    border-radius: 2px;
+}
