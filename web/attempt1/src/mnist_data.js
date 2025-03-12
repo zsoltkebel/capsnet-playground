@@ -127,6 +127,7 @@ export class MNISTData {
         
         // Create a dataset from the generator
         const dataset = tf.data.generator(() => generator.call(this, batchSize));
+        dataset.size = Math.floor((endIdx - startIdx) / batchSize); 
         
         return dataset;
     }
