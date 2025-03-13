@@ -93,11 +93,12 @@ def procedure1(in_capsules, out_capsule_count, out_capsule_dimension, r: int=3, 
     
 if __name__ == "__main__":
     # main()
+    logging.basicConfig(level=logging.DEBUG)
     u = torch.tensor([
          [0.0, 1.0],
          [1.0, 1.0],
          [2.0, 3.0],
-         [1.0, 1.0],
-         [1.0, 1.0],
+        #  [1.0, 1.0],
+        #  [1.0, 1.0],
     ])
     procedure1(u, 2, 2)

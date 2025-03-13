@@ -108,13 +108,14 @@ def main():
 
 
 # Procedure 1 Routing algorithm.
-def procedure1(in_capsules, out_capsule_count, out_capsule_dimension, r: int=3):
+def procedure1(in_capsules, out_capsule_count, out_capsule_dimension, r: int=3, W=None):
     """Dynamic routing.
     
     """
     in_capsule_count, in_capsule_dimension = in_capsules.size()
 
-    W = torch.randn(in_capsule_count, out_capsule_count, out_capsule_dimension, in_capsule_dimension)
+    if W is None:
+        W = torch.randn(in_capsule_count, out_capsule_count, out_capsule_dimension, in_capsule_dimension)
 
     # line 2: for all capsule i in layer l and capsule j in layer (l+1): bij ← 0.
     b_ij = torch.zeros(in_capsule_count, out_capsule_count)
@@ -151,7 +152,7 @@ def procedure1(in_capsules, out_capsule_count, out_capsule_dimension, r: int=3):
 
         # Compute coupling coefficients
         # line 4: for all capsule i in layer l: c_i ← softmax(b_i) 
-        c_ij = F.softmax(b_ij, dim=0)
+        c_ij = F.softmax(b_ij, dim=0) # TODO either dim 0 or 1 0 -> 0.33 values, 1 -> 0.5 values
         c_ij = c_ij.unsqueeze(-1)
         print("c_ij:", c_ij, sep="\n")
 

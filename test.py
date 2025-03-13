@@ -9,6 +9,14 @@ from dynamic_routing import procedure1
 
 class CapsuleNetworkTests(unittest.TestCase):
 
+    # def test_squash(self):
+    #     u = torch.tensor([
+    #         [0.135734 , 1.4105719],
+    #         [2.3560739, 0.600849 ]
+    #     ])
+    #     res = DigitCaps().squash(u)
+    #     print(res);
+
     def test_similarity(self):
         torch.manual_seed(127)
 

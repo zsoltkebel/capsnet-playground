@@ -49,6 +49,7 @@ class DigitCaps(nn.Module):
         self.num_capsules = num_capsules
 
         self.W = nn.Parameter(torch.randn(1, num_routes, num_capsules, out_channels, in_channels))
+        print("W:", self.W)
 
     def forward(self, x):
         batch_size = x.size(0)
@@ -64,6 +65,8 @@ class DigitCaps(nn.Module):
         num_iterations = 3
         for iteration in range(num_iterations):
             c_ij = F.softmax(b_ij, dim=1)
+            print("c_ij size:", c_ij.size())
+            print("c_ij:", c_ij)
             c_ij = torch.cat([c_ij] * batch_size, dim=0).unsqueeze(4)
 
             s_j = (c_ij * u_hat).sum(dim=1, keepdim=True)
@@ -153,3 +156,17 @@ class CapsNet(nn.Module):
     def reconstruction_loss(self, data, reconstructions):
         loss = self.mse_loss(reconstructions.view(reconstructions.size(0), -1), data.view(reconstructions.size(0), -1))
         return loss * 0.0005
+
+if __name__ == "__main__":
+    u = torch.tensor([[[0.5, 1.0],
+                        [1.0, 1.0],
+                        [1.0, 2.0]]])
+
+    batch_size, in_capsules, in_dimension = u.size()
+    out_capsules = 2
+    out_dimension = 2
+
+    # from github
+    capsule = DigitCaps(out_capsules, in_capsules, in_dimension, out_dimension)
+
+    res_didigtCaps = capsule.forward(u)
