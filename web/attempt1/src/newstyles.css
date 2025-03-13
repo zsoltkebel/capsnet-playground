@@ -7,7 +7,7 @@ body {
 #model {
     position: relative;
     min-width: 1200px;
-    min-height: 390px;
+    min-height: 400px;
     width: 100%;
     background-color: whitesmoke;
 }
@@ -86,11 +86,17 @@ canvas#input-image:active {
 }
 
 .capsule {
-    padding: 0 5px 0 5px;
+    padding: 2 8px 2 8px;
     transform: translate(-50%, -50%);
+    cursor: default;
 }
 
 .capsule-selected {
     border: 2px solid black;
+    border-radius: 2px;
+}
+
+.capsule:hover {
+    background-color: gray;
     border-radius: 2px;
 }

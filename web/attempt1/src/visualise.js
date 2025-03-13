@@ -1,5 +1,14 @@
 import * as d3 from "d3";
 import * as tf from "@tensorflow/tfjs";
+import { predictAndVisualise, labelDigitFromCapsules } from "./trainPage";
+import { DigitCaps } from "./sequential";
+
+const CANVAS_SIZE = 280;
+
+let hoveredDigit;
+let state = {
+    cIJ: null,
+};
 
 /**
 * 
@@ -51,13 +60,12 @@ export async function updateDynamicRoutingLinks(cIJ, { lowerLayerX=400, upperLay
     });
     
 }
-// updateCapsules(10);
 
 /**
 * 
 * @param {*} digitCapsOutput tensor with shape: [batch_size, numCaps, dimCaps]
 */
-export async function updateDigitCaps(digitCapsOutput, { lowerLayerX=400, upperLayerX=1020, selectedTargetIdx } = {}) {
+export async function updateDigitCaps(model, digitCapsOutput, { lowerLayerX=400, upperLayerX=1020, selectedTargetIdx } = {}) {
     const arr = digitCapsOutput.arraySync();
     const highestDigit = tf.argMax(tf.norm(digitCapsOutput, "euclidean", -1), -1).squeeze().arraySync();
     // console.log(highestDigit);
@@ -74,7 +82,7 @@ export async function updateDigitCaps(digitCapsOutput, { lowerLayerX=400, upperL
     const capsuleY = index => (index + 1) * (280 / (capsules.length + 1));  // X positions based on index
     
     const capsulesD3 = d3.select("#model")
-    .select("#primary-caps")
+    .select("#digit-caps")
     .selectAll("div")
     .data(capsules)
     .join("div")
@@ -85,7 +93,6 @@ export async function updateDigitCaps(digitCapsOutput, { lowerLayerX=400, upperL
     .transition()
     .style("opacity", (d) => d3.scaleLinear([0, 1], [0.1, 1])(d.length))
     
-    
     capsulesD3
     .classed("capsule-selected", (d, i) => highestDigit === i)
     .style("position", "absolute")
@@ -93,9 +100,40 @@ export async function updateDigitCaps(digitCapsOutput, { lowerLayerX=400, upperL
     .style("top", (d, i) => `${45 + capsuleY(i)}px`)
     .text((d, i) => i);
     
+    capsulesD3
+    .on("mouseenter", (event, d) => {
+        
+        model.getLayer(DigitCaps.className).routingCallback = (cIJs, vJ) => {
+            updateDynamicRoutingLinks(cIJs[2], { 
+                selectedTargetIdx: d.digit,
+                // selectedTargetIdx: labelDigitFromCapsules(vJ.slice([0, 0, 0], [1, 10 ,16]).squeeze(0)),
+            });
+        };
+        
+        predictAndVisualise();
+    })
+    .on("mouseleave", (event, d) => {
+        
+        model.getLayer(DigitCaps.className).routingCallback = (cIJs, vJ) => {
+            updateDynamicRoutingLinks(cIJs[2], { 
+                // selectedTargetIdx: labelDigitFromCapsules(vJ.slice([0, 0, 0], [1, 10 ,16]).squeeze(0)),
+            });
+        };
+        
+        predictAndVisualise();
+    });
+    
+    // Add title
+    d3.select("#model")
+    .select("p")
+    .style("position", "absolute")
+    .style("left", `${upperLayerX}px`)
+    .style("top", "40px")
+    .style("transform", "translate(-50%, -50%)")
+    .text("DigitCaps");
 }
 
-export function updateDigitCapsules(numCaps, { lowerLayerX=400, upperLayerX=1020, selectedTargetIdx } = {}) {
+export function updatePrimaryCaps(numCaps, { lowerLayerX=400, upperLayerX=1020, selectedTargetIdx } = {}) {
     //TODO maybe use weight matrix or some other tensor to have more info about capsules?
     
     const arr = Array.from({ length: numCaps }, (_, i) => i);
