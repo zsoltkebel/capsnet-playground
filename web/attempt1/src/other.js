@@ -1,7 +1,7 @@
 import * as d3 from "d3";
-import { CapsuleNetwork } from "./capsnet";
+import { CapsuleNetwork } from "./model/capsnet.js";
 import * as tf from "@tensorflow/tfjs";
-import { clamp } from "./utils.js";
+import { clamp } from "./model/utils.js";
 
 const NETWORK_HEIGHT = 500;
 const NETWORK_WIDTH = 700;
@@ -187,7 +187,7 @@ function updateLinks(nodeCoordinates, links) {
         console.log();
 }
 
-function drawNode(cx, cy, nodeId) {
+function drawNode(cx, cy, nodeId, nodeCoordinates, links) {
     let x = cx - CAPSULE_WIDTH / 2;
     let y = cy - CAPSULE_HEIGHT / 2;
     
@@ -202,7 +202,21 @@ function drawNode(cx, cy, nodeId) {
     .style("height", `${CAPSULE_HEIGHT}px`)
     .style("width", `${CAPSULE_WIDTH}px`)
     // .html("c");
-    
+    div.on("click", (event) => {
+        console.log("clicked")
+        const target = d3.select(event.currentTarget);
+        const isActive = target.classed("selected-capsule");
+
+        d3.select("#network")
+            .selectAll(".capsule")
+            .classed("selected-capsule", false)
+            .text("")
+        target
+            .classed("selected-capsule", !isActive)
+            .text(!isActive ? "ON" : "OFF");
+
+        updateLinks(nodeCoordinates, links);
+    })
     
 }
 
@@ -223,7 +237,7 @@ function addPlusMinusControl(x, layerIdx) {
     firstRow.append("button")
     .attr("class", "mdl-button mdl-js-button mdl-button--icon")
     .on("click", () => {
-        if (capsuleCounts[i] >= 8) {
+        if (capsuleCounts[i] >= 10) {
             return;
         }
         capsuleCounts[i]++;

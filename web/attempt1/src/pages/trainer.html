@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Capsule Network Visualiser</title>
+
+    <!-- Material Icons -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    <link rel="stylesheet" href="https://code.getmdl.io/1.3.0/material.indigo-pink.min.css">
+    <script defer src="https://code.getmdl.io/1.3.0/material.min.js"></script>
+
+    <link href="../../styles/newstyles.css" rel="stylesheet">
+</head>
+<body>
+    <h4>Train a Capsule Network in your browser.</h4>
+
+    <div id="model">
+        <label id="input-label" class="canvas-label" for="input-image" style="position: absolute; width: 280px; left: 22px;">Label: <span class="digits">--</span>, Input Image:</label>
+        <canvas id="input-image" class="disabled" width="28" height="28"></canvas>
+        <label id="reconstruction-label" class="canvas-label" for="reconstruction-image" style="position: absolute; width: 280px; right: 22px;">Predicted Label: <span class="digits">--</span>, Reconstruction:</label>
+        <canvas id="reconstruction-image" width="28" height="28"></canvas>
+        
+        <div class="losses-container" style="max-width: 400px;">
+            <label id="margin-loss-label">Margin Loss: <span class="digits">0.0</span></label>
+            <label id="reconstruction-loss-label">Reconstruction Loss: <span class="digits">0.0</span></label>
+        </div>
+        
+        <svg>
+            <g id="links"></g>
+        </svg>
+
+        <div id="primary-caps">
+            <p>PrimaryCaps</p>
+        </div>
+        <div id="digit-caps">
+            <p>DigitCaps</p>
+        </div>
+    </div>
+
+    <div id="controls">
+        <button id="btn-train">Train</button>
+
+        <label class="switch" for="save-model">Save Model</label>
+        <input type="checkbox" id="save-model" checked/>
+
+        <label for="progressBar">Batch: <span id="current-batch" class="digits">0</span>/<span id="total-batches" class="digits">0</span></label>
+        <progress id="progressBar" value="0" max="100"></progress>
+
+        <button id="btn-delete-model">Delete Cached Model</button>
+        <button id="btn-download-model">Download Model</button>
+    </div>
+
+    <hr/>
+
+    <div>
+        <h4>Model Architecture</h4>
+        <p>This is a simplified version of the capsule network architecture described in "Dynamic Routing Between Capsules" paper.</p>
+    </div>
+    <script src="trainer.js" type="module"></script>
+</body>
+</html>
