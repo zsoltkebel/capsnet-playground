@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Capsule Network with Curved Connections</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+    }
+
+    svg {
+      background-color: #f5f5f5;
+      border: 1px solid #ccc;
+    }
+
+    .capsule {
+      fill: steelblue;
+      stroke: black;
+      stroke-width: 2;
+    }
+
+    .link {
+      fill: none;
+      stroke: #333;
+      stroke-width: 2;
+      opacity: 0.6;
+    }
+
+    .link-hover {
+      fill: none;
+      stroke: transparent;
+      stroke-width: 20; /* Invisible but thick for hover detection */
+      opacity: 0;
+    }
+
+    .capsule-label {
+      fill: white;
+      font-size: 12px;
+      text-anchor: middle;
+      pointer-events: none;
+    }
+
+    .weight-card {
+      position: absolute;
+      background-color: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 5px;
+      border-radius: 5px;
+      visibility: hidden;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Capsule Network with Curved Connections</h1>
+  <svg width="800" height="600"></svg>
+  <div class="weight-card" id="weightCard"></div>
+
+  <script>
+    // Define the dimensions of the rectangle around capsules
+    const RECT_SIZE = 40;
+
+    // 2-Layer Capsule Network Toy Example Data
+    const layer1 = [
+      { id: 1, x: 150, y: 200 },
+      { id: 2, x: 150, y: 300 },
+      { id: 3, x: 150, y: 400 }
+    ];
+
+    const layer2 = [
+      { id: 4, x: 450, y: 250 },
+      { id: 5, x: 450, y: 350 }
+    ];
+
+    // Define links between capsules from layer 1 to layer 2
+    const links = [
+      { source: 1, target: 4 },
+      { source: 1, target: 5 },
+      { source: 2, target: 4 },
+      { source: 2, target: 5 },
+      { source: 3, target: 4 }
+    ];
+
+    // Create SVG container
+    const svg = d3.select('svg');
+
+    // Mapping of node coordinates (capsule positions)
+    const node2coord = {};
+    layer1.concat(layer2).forEach(node => {
+      node2coord[node.id] = { cx: node.x, cy: node.y };
+    });
+
+    // Function to draw links with curves (diagonal style)
+    function drawLink(input, node2coord, container, index, length) {
+      const source = node2coord[input.source];
+      const dest = node2coord[input.target];
+      
+      const datum = {
+        source: {
+          y: source.cx + RECT_SIZE / 2 + 2,
+          x: source.cy
+        },
+        target: {
+          y: dest.cx - RECT_SIZE / 2,
+          x: dest.cy + ((index - (length - 1) / 2) / length) * 12
+        }
+      };
+
+      // Use D3's diagonal projection for the smooth curve
+      const diagonal = d3.line()
+        .curve(d3.curveBasis)  // Smooth curve
+        .x(d => d.x)
+        .y(d => d.y);
+
+      // Create the link path
+      let line = container.insert("path", ":first-child")
+        .attr("class", "link")
+        .attr("d", diagonal([datum.source, datum.target]))
+        .attr("marker-start", "url(#markerArrow)");
+
+      // Add an invisible thick link for hover interaction
+      container.append("path")
+        .attr("d", diagonal([datum.source, datum.target]))
+        .attr("class", "link-hover")
+        .on("mouseenter", function() {
+          updateHoverCard(input, d3.mouse(this)); // Show weight on hover
+        })
+        .on("mouseleave", function() {
+          updateHoverCard(null); // Hide weight on mouse leave
+        });
+
+      return line;
+    }
+
+    // Add arrow markers for the links
+    svg.append("defs").append("marker")
+      .attr("id", "markerArrow")
+      .attr("viewBox", "0 0 10 10")
+      .attr("refX", 10)
+      .attr("refY", 5)
+      .attr("markerWidth", 4)
+      .attr("markerHeight", 4)
+      .attr("orient", "auto")
+      .append("path")
+      .attr("d", "M 0 0 L 10 5 L 0 10 Z")
+      .attr("fill", "#333");
+
+    // Create the link container
+    const linkContainer = svg.append("g").attr("class", "links");
+
+    // Draw the links
+    links.forEach((link, i) => {
+      drawLink(link, node2coord, linkContainer, i, links.length);
+    });
+
+    // Draw capsules for layer 1
+    svg.selectAll('.capsule.layer1')
+      .data(layer1)
+      .enter()
+      .append('circle')
+      .attr('class', 'capsule layer1')
+      .attr('cx', d => d.x)
+      .attr('cy', d => d.y)
+      .attr('r', RECT_SIZE / 2);
+
+    // Draw capsules for layer 2
+    svg.selectAll('.capsule.layer2')
+      .data(layer2)
+      .enter()
+      .append('circle')
+      .attr('class', 'capsule layer2')
+      .attr('cx', d => d.x)
+      .attr('cy', d => d.y)
+      .attr('r', RECT_SIZE / 2);
+
+    // Add labels to capsules in layer 1
+    svg.selectAll('.capsule-label.layer1')
+      .data(layer1)
+      .enter()
+      .append('text')
+      .attr('class', 'capsule-label layer1')
+      .attr('x', d => d.x)
+      .attr('y', d => d.y + RECT_SIZE / 2 + 5)
+      .text(d => `Capsule ${d.id}`);
+
+    // Add labels to capsules in layer 2
+    svg.selectAll('.capsule-label.layer2')
+      .data(layer2)
+      .enter()
+      .append('text')
+      .attr('class', 'capsule-label layer2')
+      .attr('x', d => d.x)
+      .attr('y', d => d.y + RECT_SIZE / 2 + 5)
+      .text(d => `Capsule ${d.id}`);
+
+    // Function to update hover card
+    function updateHoverCard(input = null, mousePos = null) {
+      const hoverCard = d3.select("#weightCard");
+      if (input) {
+        hoverCard.style("visibility", "visible")
+          .style("left", `${mousePos[0] + 10}px`)
+          .style("top", `${mousePos[1] + 10}px`)
+          .text(`Weight: ${Math.random().toFixed(2)}`); // Simulating a random weight for demo
+      } else {
+        hoverCard.style("visibility", "hidden");
+      }
+    }
+  </script>
+
+  <script src="node.js"></script>
+</body>
+</html>

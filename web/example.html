@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <style>
+            .bar {
+                color: #fff;
+                background-color: #222;
+                margin: 2px;
+                padding: 4px;
+            }
+        </style>
+    </head>
+    <body>
+        <main>
+            <div data-id="1"></div>
+            <div data-id="2"></div>
+            <div data-id="3"></div>
+        </main>
+        <script type="module">
+            import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
+            const data = [40,600,180];
+            const elements = 
+                d3.selectAll("[data-id]")
+                    .data(data)
+                    .text((d, i) => {
+                        return d;
+                    })
+                    .classed("bar", true)
+                    .style("width", d => {
+                        return `${d}px`;
+                    });
+        </script>
+    </body>
+</html>
