@@ -1,11 +1,7 @@
 import * as tf from "@tensorflow/tfjs"
 
-
-// const MNIST_IMAGES_SPRITE_PATH = 'https://raw.githubusercontent.com/zsoltkebel/capsnet-models/main/mnist-dataset/mnist_images.png';
-// const MNIST_LABELS_PATH = 'https://raw.githubusercontent.com/zsoltkebel/capsnet-models/main/mnist-dataset/mnist_labels_uint8';
-
-const MNIST_IMAGES_SPRITE_PATH = '/mnist-dataset/mnist_images.png';
-const MNIST_LABELS_PATH = '/mnist-dataset/mnist_labels_uint8';
+const MNIST_IMAGES_SPRITE_PATH = 'https://raw.githubusercontent.com/zsoltkebel/capsnet-models/main/mnist-dataset/mnist_images.png';
+const MNIST_LABELS_PATH = 'https://raw.githubusercontent.com/zsoltkebel/capsnet-models/main/mnist-dataset/mnist_labels_uint8';
 
 export class MNISTData {
     constructor(imagesFilepath=MNIST_IMAGES_SPRITE_PATH, labelsFilepath=MNIST_LABELS_PATH) {
