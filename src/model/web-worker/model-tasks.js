@@ -1,10 +1,10 @@
 import * as tf from "@tensorflow/tfjs";
 import { mnistGenerator } from "../capsnet/dataset";
 import { CapsuleNetwork } from "../capsnet/capsnet-tensorflow";
-import { trainModel } from "../capsnet/trainer";
+import { trainModel, marginLoss, reconstructionLoss } from "../capsnet/trainer";
 
 let model;
-let testDataset = tf.data.generator(mnistGenerator).batch(1);
+let testDataset = tf.data.generator(mnistGenerator).batch(1).shuffle(100);
 let iterator;
 testDataset.iterator().then((result) => {
     iterator = result;
@@ -65,6 +65,8 @@ const queryableFunctions = {
                         capsuleOutputs: capsuleOutputsArray,
                         reconstruction: reconstructionArray,
                         coeffs: coeffsArray,
+                        marginLoss: marginLoss,
+                        reconstructionLoss: reconstructionLoss,
                     });
                 }
             });
@@ -79,18 +81,14 @@ const queryableFunctions = {
     },
 
     async predictRandom() {
-
         const sample = (await iterator.next()).value;
         const { x, y } = sample;
 
         const [capsuleOutputs, reconstructions] = model.predict(x);
         const coeffs = model.getLayer("DigitCaps").couplingCoefficients;
 
-        // const mLoss = marginLoss(y1, o1);
-        // const rLoss = reconstructionLoss(y2, o2);
-        // const loss = mLoss.add(tf.mul(rLoss, tf.scalar(reconLossWeight)));
-
-        // TODO give better names to variables
+        const mLoss = marginLoss(y, capsuleOutputs).arraySync();
+        const rLoss = reconstructionLoss(x, reconstructions).arraySync();
 
         const imageArray = await x.mul(255).data();
         const labelArray = y.arraySync();
@@ -105,6 +103,8 @@ const queryableFunctions = {
             capsuleOutputs: capsuleOutputsArray,
             reconstruction: reconstructionArray,
             coeffs: coeffsArray,
+            marginLoss: mLoss,
+            reconstructionLoss: rLoss,
         });
     },
 };

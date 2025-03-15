@@ -1,7 +1,7 @@
 import * as tf from "@tensorflow/tfjs";
 import * as d3 from "d3";
 import { marginLoss, reconstructionLoss } from "../model/capsnet/trainer";
-import { renderImageFromData, updateDigitCaps, updateDynamicRoutingLinks, visualiseBatch, visualisePrediction } from "../model/visualise";
+import { renderImageFromData, visualiseBatch, visualisePrediction } from "../model/visualise";
 import { CapsuleNetwork, DigitCaps } from "../model/capsnet/capsnet-tensorflow";
 import { MNISTDataset } from "../model/capsnet/dataset";
 import { QueryableWorker } from "../model/web-worker/queryable-worker";
@@ -37,6 +37,13 @@ let state = {
     visibleRoutingIteration: 2,  // 0-(total routing iterations-1)
 };  // Object storing all the data needed for the visualisation
 
+let svgWidth = d3.select("svg").node().getBoundingClientRect().width;
+window.addEventListener("resize", () => {
+    console.log("Window resized!");
+    svgWidth = d3.select("svg").node().getBoundingClientRect().width;
+
+    visualiseSample(state);
+});
 
 // Handle input image click
 d3.select("canvas#input-image")
@@ -153,8 +160,6 @@ modelTrainingTask.addListener("visualiseSample", (data) => {
  * @param {*} param0 
  */
 function visualiseSample(data) {
-    // Save current state
-
     renderImageFromData(data.image, 0, canvasImage);
     renderImageFromData(data.reconstruction, 0, canvasReconstructedImage);
 
@@ -163,8 +168,11 @@ function visualiseSample(data) {
     inputLabel.textContent = trueLabel;
     reconstructionLabel.textContent = predictedLabel;
 
-    updateDynamicRoutingLinks(data.coeffs[state.visibleRoutingIteration]);
-    updateDigitCaps(data, data.capsuleOutputs);
+    updateDynamicRoutingLinks(data.coeffs[state.visibleRoutingIteration], { upperLayerX: svgWidth - 60 });
+    updateDigitCaps(data, data.capsuleOutputs, { upperLayerX: svgWidth - 30 });
+
+    marginLossLabel.textContent = data.marginLoss.toFixed(8);
+    reconstructionLossLabel.textContent = data.reconstructionLoss.toFixed(8);
 
     if (data.batchIdx) {
         currentBatchLabel.textContent = data.batchIdx + 1;
@@ -174,4 +182,106 @@ function visualiseSample(data) {
 
 function visualiseModelParameters() {
     //TODO to be implemented
+}
+
+/**
+* 
+* @param {*} cIJ array of shape: [numCaps, inputNumCaps]
+* @param {*} param1 
+*/
+async function updateDynamicRoutingLinks(cIJ, { selectedTargetIdx } = {}) {
+    const numCaps = cIJ.length;
+    const numInputCaps = cIJ[0].length;
+    
+    const x = svgWidth - 100;
+    // console.log(arr)
+    // console.log("here")
+    
+    const linkGen = d3.linkHorizontal()
+    .x(d => d.x)
+    .y(d => d.y);
+    
+    const upperLayerY = index => (index + 1) * (280 / (numCaps + 1));  // X positions based on index
+    const lowerLayerY = index => (index + 1) * (280 / (numInputCaps + 1)); // Stagger Y positions
+    
+    // TODO dont always show last iteration
+    const links = cIJ.flatMap((sources, targetIdx) => 
+        sources.map((couplingCoefficient, sourceIdx) => ({
+        source: { x: 100, y: lowerLayerY(sourceIdx) },  // Needed for link generator
+        target: { x: x, y: upperLayerY(targetIdx) },  // Needed for link generator
+        coeff: couplingCoefficient,                          // Coupling coefficient
+        sourceIdx: sourceIdx,                                // Capsule index in lower layer
+        targetIdx: targetIdx,                                // Capsule index in upper layer
+    })));
+    
+    const linksD3 = d3.select("#model svg")
+    .select("#links")
+    .selectAll("path")
+    .data(links)
+    .join("path")
+    .attr("d", linkGen)
+    .attr("fill", "none")
+    .attr("stroke", "black")
+    .attr("stroke-width", 2);
+    
+    linksD3
+    .transition()
+    .attr("opacity", (d) => {
+        if (selectedTargetIdx != null && d.targetIdx !== selectedTargetIdx) {
+            return 0.0;
+        }
+        // Scale coefficients to be at least 0.05 for visibility
+        return d3.scaleLinear([0, 1], [0.05, 1.0])(d.coeff);
+    });
+    
+}
+
+/**
+* 
+* @param {*} digitCapsOutput array with shape: [numCaps, dimCaps]
+*/
+async function updateDigitCaps(state, digitCapsOutput) {
+    const x = svgWidth - 80;
+
+    const arr = digitCapsOutput;//TODO unneccessary
+    const highestDigit = tf.argMax(tf.norm(digitCapsOutput, "euclidean", -1), -1).squeeze().arraySync();
+    // console.log(highestDigit);
+    // TODO hardcoded first batch (0)
+    const capsules = arr.flatMap((vector, digit) => {
+        const tensor = tf.tensor(vector);
+        return {
+            digit: digit,
+            vector: tensor,
+            length: tf.norm(tensor).arraySync(),
+        }
+    });
+    
+    const capsuleY = index => (index + 1) * (280 / (capsules.length + 1));  // X positions based on index
+    
+    const capsulesD3 = d3.select("#model")
+    .select("#digit-caps")
+    .selectAll("div")
+    .data(capsules)
+    .join("div")
+    .attr("id", (d, i) => `primary-capsule-${i}`)
+    .attr("class", "capsule")
+    
+    capsulesD3
+    .transition()
+    .style("opacity", (d) => d3.scaleLinear([0, 1], [0.1, 1])(d.length))
+    
+    capsulesD3
+    .classed("capsule-selected", (d, i) => highestDigit === i)
+    .style("position", "absolute")
+    .style("left", `${x}px`)
+    .style("top", (d, i) => `${capsuleY(i)}px`)
+    .text((d, i) => i);
+    
+    capsulesD3
+    .on("mouseenter", (event, d) => 
+        updateDynamicRoutingLinks(state.coeffs[state.visibleRoutingIteration], { selectedTargetIdx: d.digit })
+    )
+    .on("mouseleave", (event, d) => 
+        updateDynamicRoutingLinks(state.coeffs[state.visibleRoutingIteration])
+    );
 }

@@ -5,12 +5,31 @@ body {
 }
 
 #model {
-    position: relative;
-    min-width: 1200px;
-    min-height: 400px;
+    /* position: relative; */
+    min-height: 280px;
     width: 100%;
     background-color: whitesmoke;
+    display: flex;
+    padding: 20px;
+    box-sizing: border-box;
 }
+
+.image-column {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 100px;
+    max-width: 280px;
+    gap: 10px
+}
+
+.dynamic-routing-column {
+    min-width: 500;
+    position: relative;
+    flex: 1;
+}
+
+
 
 #controls {
     /* display: block; */
@@ -22,12 +41,9 @@ body {
 }
 
 canvas {
-    position: absolute;
+    /* max-width: 280px; */
     border: 2px solid black;
     border-radius: 2px;
-    width: 280px;
-    height: 280px;
-    top: 45px;
     transition: transform 0.2s ease;
     background-color: black;
 }
@@ -54,21 +70,7 @@ canvas#input-image:active {
     pointer-events: none;
 }
 
-.canvas-label {
-    width: 280px;
-    text-align: left;
-    padding-left: 5px;
-    box-sizing: border-box;
-    top: 20px;
-}
-
 .losses-container {
-    position: absolute;
-    width: 280px;
-    right: 20px;
-    top: 330px;
-    padding: 5px;
-    box-sizing: border-box;
     display: flex;
     flex-direction: column;
     text-align: right;
@@ -82,13 +84,15 @@ canvas#input-image:active {
 
 #model svg {
     width: 100%;
-    min-height: 390;
+    min-height: 280;
 }
 
 .capsule {
     padding: 2 8px 2 8px;
-    transform: translate(-50%, -50%);
+    transform: translate(-50%, 50%);
     cursor: default;
+    box-sizing: border-box;
+    line-height: 1;
 }
 
 .capsule-selected {
@@ -105,4 +109,14 @@ canvas#input-image:active {
     display: flex;
     justify-content: center;
     gap: 4px;
+}
+
+.arrow-container {
+    display: flex;
+    align-items: center;
+    width: 100%;
+}
+
+.description {
+    max-width: 700;
 }
