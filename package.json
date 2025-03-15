@@ -1,6 +1,6 @@
 {
   "type": "module",
-  "source": "index.html",
+  "source": "src/index.html",
   "devDependencies": {
     "assert": "^2.1.0",
     "buffer": "^6.0.3",
