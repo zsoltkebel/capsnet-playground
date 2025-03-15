@@ -1,0 +1,5 @@
+{
+    "rewrites": [
+        { "source": "/capsule-network", "destination": "/pages/capsule-network.html" }
+    ]
+}
