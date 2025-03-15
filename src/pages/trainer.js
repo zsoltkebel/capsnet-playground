@@ -4,6 +4,7 @@ import { marginLoss, reconstructionLoss } from "../model/capsnet/trainer";
 import { renderImageFromData, updateDigitCaps, updateDynamicRoutingLinks, visualiseBatch, visualisePrediction } from "../model/visualise";
 import { CapsuleNetwork, DigitCaps } from "../model/capsnet/capsnet-tensorflow";
 import { MNISTDataset } from "../model/capsnet/dataset";
+import { QueryableWorker } from "../model/web-worker/queryable-worker";
 
 d3.select("#btn-train").node().disabled = true;
 
@@ -23,6 +24,7 @@ const reconstructionLabel = d3.select("#reconstruction-label .digits").node();
 const trainButton = d3.select("#btn-train");
 const deleteModelButton = d3.select("#btn-delete-model");
 const downloadModelButton = d3.select("#btn-download-model");
+const saveModelCheckbox = d3.select("#save-model");
 
 let currentImageIdx;
 
@@ -33,32 +35,36 @@ let state = {
 
 // Handle input image click
 d3.select("canvas#input-image")
-.on("click", (event) => {
-    // predictRandom();
-    webWorker.postMessage({ type: "predict" });
-});
+    .on("click", (event) => {
+        // predictRandom();
+        modelTrainingTask.sendQuery("predictRandom");
+        // webWorker.postMessage({ type: "predict" });
+    });
 
 // Handle train button click
 trainButton
-.on("click", async (event) => {
-    trainButton.node().disabled = true;
-    webWorker.postMessage({ type: "start_training" });
-    // onTrainClicked();
-    // data.loadFileInBatches();
-    
-    // data.saveGrayscaleDatasetToFile();
-    // data.fetchBatch(1, 64);
-    
-    // t = await data.loadCompressedTensorFromUint8GitHub();
-    // console.log("shape: ", t.shape);
-    // console.log(t);
-});
+    .on("click", async (event) => {
+        const saveModel = saveModelCheckbox.node().checked;
+        console.log("save model?", saveModel);
+        // webWorker.postMessage({ type: "start_training" });
+        modelTrainingTask.sendQuery("trainModel", { saveModelToBrowserCache: saveModel }); //TODO could send additional params here like epoch, batch size etc
+
+        // onTrainClicked();
+        // data.loadFileInBatches();
+
+        // data.saveGrayscaleDatasetToFile();
+        // data.fetchBatch(1, 64);
+
+        // t = await data.loadCompressedTensorFromUint8GitHub();
+        // console.log("shape: ", t.shape);
+        // console.log(t);
+    });
 
 deleteModelButton.on("click", async (event) => {
     if (confirm("Are you sure you want to delete cached model?")) {
         await tf.io.removeModel('indexeddb://capsnet')
-        .then(() => console.log('Model deleted successfully'))
-        .catch(err => console.error('Error deleting model:', err));
+            .then(() => console.log('Model deleted successfully'))
+            .catch(err => console.error('Error deleting model:', err));
     }
 });
 
@@ -69,33 +75,41 @@ downloadModelButton.on("click", async (event) => {
         .catch(err => console.error('Error downloading model:', err));
 });
 
+const modelTrainingTask = new QueryableWorker(new URL('../model/web-worker/model-tasks.js', import.meta.url));
 
-const webWorker = new Worker(new URL('../model/worker.js', import.meta.url), {type: 'module'});
-webWorker.postMessage({ type: "load_model" });
-webWorker.onmessage = (event) => {
-    const { type, data } = event.data;
-    
-    switch (type) {
-        case "model_ready":
-            visualiseModelParameters(data);
+modelTrainingTask.sendQuery("loadModel", "https://raw.githubusercontent.com/zsoltkebel/capsnet-models/main/small/capsnet.json");  //TODO pass url based on config
 
-            d3.select("canvas#input-image").classed("disabled", false);
-            d3.select("#btn-train").node().disabled = false;
-            //TODO model ready flag
-            break;
-        case "training_did_start":
-            const { totalBatches } = data;
-            totalBatchesLabel.textContent = totalBatches;
-            progressBar.max = totalBatches;
-            break;
-        case "visualise_sample":
-            console.log("visualising sample")
-            visualiseSample(data);
-            break;
-        default:
-            console.warn(`Received unknown message type from worker: ${type}`);
+modelTrainingTask.addListener("modelDidLoad", () => {
+    d3.select("canvas#input-image").classed("disabled", false);
+    d3.select("#btn-train").node().disabled = false;
+
+    modelTrainingTask.sendQuery("predictRandom");
+});
+
+modelTrainingTask.addListener("trainingDidStart", (totalBatches) => {
+    trainButton.node().disabled = true;
+    saveModelCheckbox.node().disabled = true;
+
+    totalBatchesLabel.textContent = totalBatches;
+    progressBar.max = totalBatches;
+});
+
+modelTrainingTask.addListener("trainingDidFinish", () => {
+    trainButton.node().disabled = false;
+    saveModelCheckbox.node().disabled = false;
+});
+
+modelTrainingTask.addListener("visualiseSample", (data) => {
+    if (document.hidden) {
+        console.log("Skipping visualisation because page is hidden");
+        return;
     }
-};
+
+    requestAnimationFrame(() => {
+        visualiseSample(data);
+    });
+});
+
 
 /**
  * Visualise a single prediction sample
@@ -107,7 +121,7 @@ function visualiseSample(data) {
 
     renderImageFromData(data.image, 0, canvasImage);
     renderImageFromData(data.reconstruction, 0, canvasReconstructedImage);
-    
+
     const trueLabel = tf.argMax(data.label, -1).arraySync();
     const predictedLabel = tf.argMax(tf.norm(data.capsuleOutputs, "euclidean", -1), -1).arraySync();
     inputLabel.textContent = trueLabel;

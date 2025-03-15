@@ -48,7 +48,7 @@ async function trainModel(model, dataset, epochs, { reconLossWeight=1.0, callbac
         while (!result.done) {
             const { x, y } = result.value;
             
-            console.log(`Batch ${batchIndex}`);
+            // console.log(`Batch ${batchIndex}`);
             // console.log("xs: ", xs);
             // console.log("ys: ", ys);
             
