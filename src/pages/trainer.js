@@ -26,11 +26,16 @@ const deleteModelButton = d3.select("#btn-delete-model");
 const downloadModelButton = d3.select("#btn-download-model");
 const saveModelCheckbox = d3.select("#save-model");
 
-let currentImageIdx;
+// Dynamic routing control components
+const TOTAL_ITERATIONS = 3;
+const btnPreviousIteration = d3.select("#btn-routing-previous");
+const btnNextIteration = d3.select("#btn-routing-next");
+const lblCurrentIteration = d3.select("#routing-visible-iteration");
+const lblTotalIterations = d3.select("#routing-total-iterations");
 
 let state = {
-    coeffs: null,
-}
+    visibleRoutingIteration: 2,  // 0-(total routing iterations-1)
+};  // Object storing all the data needed for the visualisation
 
 
 // Handle input image click
@@ -75,6 +80,33 @@ downloadModelButton.on("click", async (event) => {
         .catch(err => console.error('Error downloading model:', err));
 });
 
+// Dynamic routing controls
+lblTotalIterations.text(TOTAL_ITERATIONS);
+lblCurrentIteration.text(state.visibleRoutingIteration + 1);
+
+btnPreviousIteration.on("click", (event) => {
+    if (state.visibleRoutingIteration > 0) {
+        state.visibleRoutingIteration--;
+        lblCurrentIteration.text(state.visibleRoutingIteration + 1);
+        visualiseSample(state);
+    }
+});
+
+btnNextIteration.on("click", (event) => {
+    if (state.visibleRoutingIteration < TOTAL_ITERATIONS - 1) {
+        state.visibleRoutingIteration++;
+        lblCurrentIteration.text(state.visibleRoutingIteration + 1);
+        visualiseSample(state);
+    }
+});
+
+document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && state) {
+        console.log("Visibility changed");
+        visualiseSample(state);
+    }
+});
+
 const modelTrainingTask = new QueryableWorker(new URL('../model/web-worker/model-tasks.js', import.meta.url));
 
 modelTrainingTask.sendQuery("loadModel", "https://raw.githubusercontent.com/zsoltkebel/capsnet-models/main/small/capsnet.json");  //TODO pass url based on config
@@ -100,13 +132,18 @@ modelTrainingTask.addListener("trainingDidFinish", () => {
 });
 
 modelTrainingTask.addListener("visualiseSample", (data) => {
+    state = {
+        ...state,
+        ...data,
+    };
+
     if (document.hidden) {
         console.log("Skipping visualisation because page is hidden");
         return;
     }
 
     requestAnimationFrame(() => {
-        visualiseSample(data);
+        visualiseSample(state);
     });
 });
 
@@ -117,7 +154,6 @@ modelTrainingTask.addListener("visualiseSample", (data) => {
  */
 function visualiseSample(data) {
     // Save current state
-    state = data;
 
     renderImageFromData(data.image, 0, canvasImage);
     renderImageFromData(data.reconstruction, 0, canvasReconstructedImage);
@@ -127,7 +163,7 @@ function visualiseSample(data) {
     inputLabel.textContent = trueLabel;
     reconstructionLabel.textContent = predictedLabel;
 
-    updateDynamicRoutingLinks(data.coeffs);
+    updateDynamicRoutingLinks(data.coeffs[state.visibleRoutingIteration]);
     updateDigitCaps(data, data.capsuleOutputs);
 
     if (data.batchIdx) {

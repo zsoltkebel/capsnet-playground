@@ -23,13 +23,12 @@ let state = {
 
 /**
 * 
-* @param {*} cIJ array of shape: [iterations, numCaps, inputNumCaps]
+* @param {*} cIJ array of shape: [numCaps, inputNumCaps]
 * @param {*} param1 
 */
-async function updateDynamicRoutingLinks(cIJ, { lowerLayerX=400, upperLayerX=1000, selectedTargetIdx } = {}) {
-    const iterations = cIJ.length;
-    const numCaps = cIJ[0].length;
-    const numInputCaps = cIJ[0][0].length;
+async function updateDynamicRoutingLinks(cIJ, { lowerLayerX=400, upperLayerX=1000, selectedTargetIdx, } = {}) {
+    const numCaps = cIJ.length;
+    const numInputCaps = cIJ[0].length;
     
     // console.log(arr)
     // console.log("here")
@@ -42,7 +41,7 @@ async function updateDynamicRoutingLinks(cIJ, { lowerLayerX=400, upperLayerX=100
     const lowerLayerY = index => (index + 1) * (280 / (numInputCaps + 1)); // Stagger Y positions
     
     // TODO dont always show last iteration
-    const links = cIJ[iterations - 1].flatMap((sources, targetIdx) => 
+    const links = cIJ.flatMap((sources, targetIdx) => 
         sources.map((couplingCoefficient, sourceIdx) => ({
         source: { x: lowerLayerX, y: 45 + lowerLayerY(sourceIdx) },  // Needed for link generator
         target: { x: upperLayerX, y: 45 + upperLayerY(targetIdx) },  // Needed for link generator
@@ -114,10 +113,10 @@ async function updateDigitCaps(state, digitCapsOutput, { lowerLayerX=400, upperL
     
     capsulesD3
     .on("mouseenter", (event, d) => 
-        updateDynamicRoutingLinks(state.coeffs, { selectedTargetIdx: d.digit })
+        updateDynamicRoutingLinks(state.coeffs[state.visibleRoutingIteration], { selectedTargetIdx: d.digit })
     )
     .on("mouseleave", (event, d) => 
-        updateDynamicRoutingLinks(state.coeffs)
+        updateDynamicRoutingLinks(state.coeffs[state.visibleRoutingIteration])
     );
     
     // Add title

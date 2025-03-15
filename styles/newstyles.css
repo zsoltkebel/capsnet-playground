@@ -100,3 +100,9 @@ canvas#input-image:active {
     background-color: gray;
     border-radius: 2px;
 }
+
+#dynamic-routing-controls {    
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+}
