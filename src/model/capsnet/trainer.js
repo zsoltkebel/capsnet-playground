@@ -46,7 +46,7 @@ async function trainModel(model, dataset, epochs, { reconLossWeight=1.0, callbac
         let batchIndex = 0;  // Initialize batchIndex
         
         while (!result.done) {
-            const { xs, ys } = result.value;
+            const { x, y } = result.value;
             
             console.log(`Batch ${batchIndex}`);
             // console.log("xs: ", xs);
@@ -54,19 +54,21 @@ async function trainModel(model, dataset, epochs, { reconLossWeight=1.0, callbac
             
             await tf.nextFrame();  // Yield to the UI thread
             
-            const [y1, y2] = ys;
+            // const [y1, y2] = ys;
             
             // Tidy up Tensor operations to avoid memory leaks
             tf.tidy(() => {
                 optimiser.minimize(() => {
-                    const [o1, o2] = model.apply([xs]);
+                    const [o1, o2] = model.apply(x);
 
-                    const mLoss = marginLoss(y1, o1);
-                    const rLoss = reconstructionLoss(y2, o2);
+                    const mLoss = marginLoss(y, o1);
+                    const rLoss = reconstructionLoss(x, o2);
                     const loss = mLoss.add(tf.mul(rLoss, tf.scalar(reconLossWeight)));
                     
                     // TODO give better names to variables
-                    callback(model, batchIndex, xs, y1, y2, o1, o2, mLoss.arraySync(), rLoss.arraySync());
+                    const coeffs = model.getLayer("DigitCaps").couplingCoefficients;
+
+                    callback(model, batchIndex, tf.keep(x), tf.keep(y), tf.keep(o1), tf.keep(o2), tf.keep(coeffs), mLoss.arraySync(), rLoss.arraySync());
                     
                     return loss;
                 });

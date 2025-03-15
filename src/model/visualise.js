@@ -18,18 +18,18 @@ const progressBar = d3.select("progress").node();
 
 let hoveredDigit;
 let state = {
-    cIJ: null,
+    coeffs: null,
 };
 
 /**
 * 
-* @param {*} cIJ should have shap: [batch_size, numCaps, inputNumCaps]
+* @param {*} cIJ array of shape: [iterations, numCaps, inputNumCaps]
 * @param {*} param1 
 */
 async function updateDynamicRoutingLinks(cIJ, { lowerLayerX=400, upperLayerX=1000, selectedTargetIdx } = {}) {
-    const arr = cIJ.arraySync();
-    const numCaps = cIJ.shape[1];
-    const numInputCaps = cIJ.shape[2];
+    const iterations = cIJ.length;
+    const numCaps = cIJ[0].length;
+    const numInputCaps = cIJ[0][0].length;
     
     // console.log(arr)
     // console.log("here")
@@ -41,7 +41,8 @@ async function updateDynamicRoutingLinks(cIJ, { lowerLayerX=400, upperLayerX=100
     const upperLayerY = index => (index + 1) * (280 / (numCaps + 1));  // X positions based on index
     const lowerLayerY = index => (index + 1) * (280 / (numInputCaps + 1)); // Stagger Y positions
     
-    const links = arr[0].flatMap((sources, targetIdx) => 
+    // TODO dont always show last iteration
+    const links = cIJ[iterations - 1].flatMap((sources, targetIdx) => 
         sources.map((couplingCoefficient, sourceIdx) => ({
         source: { x: lowerLayerX, y: 45 + lowerLayerY(sourceIdx) },  // Needed for link generator
         target: { x: upperLayerX, y: 45 + upperLayerY(targetIdx) },  // Needed for link generator
@@ -74,10 +75,10 @@ async function updateDynamicRoutingLinks(cIJ, { lowerLayerX=400, upperLayerX=100
 
 /**
 * 
-* @param {*} digitCapsOutput tensor with shape: [numCaps, dimCaps]
+* @param {*} digitCapsOutput array with shape: [numCaps, dimCaps]
 */
-async function updateDigitCaps(model, digitCapsOutput, { lowerLayerX=400, upperLayerX=1020, selectedTargetIdx } = {}) {
-    const arr = digitCapsOutput.arraySync();
+async function updateDigitCaps(state, digitCapsOutput, { lowerLayerX=400, upperLayerX=1020, selectedTargetIdx } = {}) {
+    const arr = digitCapsOutput;//TODO unneccessary
     const highestDigit = tf.argMax(tf.norm(digitCapsOutput, "euclidean", -1), -1).squeeze().arraySync();
     // console.log(highestDigit);
     // TODO hardcoded first batch (0)
@@ -112,27 +113,12 @@ async function updateDigitCaps(model, digitCapsOutput, { lowerLayerX=400, upperL
     .text((d, i) => i);
     
     capsulesD3
-    .on("mouseenter", (event, d) => {
-        
-        model.getLayer(DigitCaps.className).routingCallback = (cIJs, vJ) => {
-            updateDynamicRoutingLinks(cIJs[2], { 
-                selectedTargetIdx: d.digit,
-                // selectedTargetIdx: labelDigitFromCapsules(vJ.slice([0, 0, 0], [1, 10 ,16]).squeeze(0)),
-            });
-        };
-        
-        predictAndVisualise();
-    })
-    .on("mouseleave", (event, d) => {
-        
-        model.getLayer(DigitCaps.className).routingCallback = (cIJs, vJ) => {
-            updateDynamicRoutingLinks(cIJs[2], { 
-                // selectedTargetIdx: labelDigitFromCapsules(vJ.slice([0, 0, 0], [1, 10 ,16]).squeeze(0)),
-            });
-        };
-        
-        predictAndVisualise();
-    });
+    .on("mouseenter", (event, d) => 
+        updateDynamicRoutingLinks(state.coeffs, { selectedTargetIdx: d.digit })
+    )
+    .on("mouseleave", (event, d) => 
+        updateDynamicRoutingLinks(state.coeffs)
+    );
     
     // Add title
     d3.select("#model")
@@ -253,4 +239,35 @@ async function renderImage(image, label, canvas) {
     ctx.putImageData(imageData, 0, 0);
 }
 
-export { updateDynamicRoutingLinks, updateDigitCaps, updatePrimaryCaps, visualiseBatch, visualisePrediction };
+async function renderImageFromData(pixels, label, canvas) {
+    // console.log("label: " + label);
+    // console.log("image data ", image);
+    
+    // Create a canvas element in the DOM
+    // const canvas = d3.select("canvas").node();
+    // const canvas = document.createElement('canvas');
+    // document.body.appendChild(canvas);
+    const ctx = canvas.getContext('2d');
+    
+    ctx.imageSmoothingEnabled = false;
+    
+    // Set the canvas size to match the image (28x28 pixels)
+    canvas.width = 28;
+    canvas.height = 28;
+    
+    // Convert the image array to a format suitable for the canvas (RGBA format)
+    const imageData = ctx.createImageData(28, 28);
+    // const pixels = image.flat();  // Flatten the 2D array to 1D
+    
+    for (let i = 0; i < pixels.length; i++) {
+        imageData.data[i * 4] = pixels[i];     // Red channel (greyscale image)
+        imageData.data[i * 4 + 1] = pixels[i]; // Green channel (greyscale image)
+        imageData.data[i * 4 + 2] = pixels[i]; // Blue channel (greyscale image)
+        imageData.data[i * 4 + 3] = 255;       // Alpha channel (fully opaque)
+    }
+    
+    // Put the image data on the canvas
+    ctx.putImageData(imageData, 0, 0);
+}
+
+export { updateDynamicRoutingLinks, updateDigitCaps, updatePrimaryCaps, visualiseBatch, visualisePrediction, renderImageFromData };

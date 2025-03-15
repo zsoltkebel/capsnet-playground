@@ -65,7 +65,14 @@ class PrimaryCaps extends tf.layers.Layer {
     }
 }
 
-function dynamicRouting(uHat, iterations = 3, { callback }) {
+/**
+ * 
+ * @param {*} uHat 
+ * @param {*} iterations 
+ * @param {*} param2 
+ * @returns returns capsule outputs and a tensor of coupling coefficients in the shape [batch_size, iterations, numCaps, numInputCaps]
+ */
+function dynamicRouting(uHat, iterations = 3) {
     const batchSize = uHat.shape[0];
     const numCaps = uHat.shape[1];
     const inputNumCaps = uHat.shape[2];
@@ -90,15 +97,9 @@ function dynamicRouting(uHat, iterations = 3, { callback }) {
         }
     }
     
-    vJ = vJ.squeeze([2]);
+    vJ = vJ.squeeze(2);  // Remove singleton dimension that was necessary for operations to line up
     
-    try {
-        callback(cIJs, vJ);
-    } catch (error) {
-        console.warn("Could not call dynamic routing callback: ", error);
-    }
-    
-    return [vJ, ...cIJs];
+    return [vJ, tf.keep(tf.stack(cIJs, 1))];
 }
 
 function squash(vectors, axis = -1) {
@@ -123,7 +124,6 @@ class DigitCaps extends tf.layers.Layer {
         numCapsules = 10,
         capsuleDimension = 16,
         routingIterations = 3,
-        routingCallback,
         ...options
     } = {}) {
         super(options);
@@ -131,7 +131,6 @@ class DigitCaps extends tf.layers.Layer {
         this.numCapsules = numCapsules;
         this.capsuleDimension = capsuleDimension;
         this.routingIterations = routingIterations;
-        this.routingCallback = routingCallback;
     }
     
     computeOutputShape() {
@@ -172,7 +171,11 @@ class DigitCaps extends tf.layers.Layer {
             const uHat = tf.matMul(W, u).squeeze(-1);
             
             // Apply dynamic routing
-            return dynamicRouting(uHat, this.routingIterations, { callback: this.routingCallback });
+            const [vJ, couplingCoefficients] = dynamicRouting(uHat, this.routingIterations);
+            
+            // Save coupling coefficient for visualisation
+            this.couplingCoefficients = couplingCoefficients;
+            return vJ
         });
     }
     
