@@ -1,7 +1,7 @@
 import * as d3 from "d3";
-import { CapsuleNetwork } from "./model/capsnet.js";
+import { CapsuleNetwork } from "../model/capsnet.js";
 import * as tf from "@tensorflow/tfjs";
-import { clamp } from "./model/utils.js";
+import { clamp } from "../model/utils.js";
 
 const NETWORK_HEIGHT = 500;
 const NETWORK_WIDTH = 700;

@@ -1,7 +1,7 @@
 import * as tf from "@tensorflow/tfjs";
 import * as d3 from "d3";
-import { renderImageFromData } from "../model/visualise";
-import { QueryableWorker } from "../model/web-worker/queryable-worker";
+import { renderImageFromData } from "./model/visualise";
+import { QueryableWorker } from "./model/web-worker/queryable-worker";
 
 d3.select("#btn-train").node().disabled = true;
 
@@ -125,7 +125,7 @@ document.addEventListener("visibilitychange", () => {
     }
 });
 
-const modelTrainingTask = new QueryableWorker(new URL('../model/web-worker/model-tasks.js', import.meta.url));
+const modelTrainingTask = new QueryableWorker(new URL('./model/web-worker/model-tasks.js', import.meta.url));
 
 modelTrainingTask.sendQuery("loadModel", "https://raw.githubusercontent.com/zsoltkebel/capsnet-models/main/small/epochs-2/capsnet.json");  //TODO pass url based on config
 
