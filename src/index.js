@@ -88,13 +88,13 @@ downloadModelButton.on("click", async (event) => {
 
 loadPreTrainedModelButton.on("click", () => {
     if (confirm("Are you sure you want to load the pre-trained model?")) {
-        modelTrainingTask.sendQuery("loadModel", url = "https://raw.githubusercontent.com/zsoltkebel/capsnet-models/main/small/epochs-2/capsnet.json");
+        modelTrainingTask.sendQuery("loadModel", "https://raw.githubusercontent.com/zsoltkebel/capsnet-models/main/small/epochs-2/capsnet.json");
     }
 });
 
 resetModelButton.on("click", () => {
     if (confirm("Are you sure you want to reset the model?")) {
-        modelTrainingTask.sendQuery("loadModel", url = ""); // empty URL will reset the model
+        modelTrainingTask.sendQuery("loadModel", ""); // empty URL will reset the model
     }
 });
 
