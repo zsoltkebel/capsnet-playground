@@ -1,9 +1,6 @@
 import * as tf from "@tensorflow/tfjs";
 import * as d3 from "d3";
-import { marginLoss, reconstructionLoss } from "../model/capsnet/trainer";
-import { renderImageFromData, visualiseBatch, visualisePrediction } from "../model/visualise";
-import { CapsuleNetwork, DigitCaps } from "../model/capsnet/capsnet-tensorflow";
-import { MNISTDataset } from "../model/capsnet/dataset";
+import { renderImageFromData } from "../model/visualise";
 import { QueryableWorker } from "../model/web-worker/queryable-worker";
 
 d3.select("#btn-train").node().disabled = true;
@@ -24,6 +21,8 @@ const reconstructionLabel = d3.select("#reconstruction-label .digits").node();
 const trainButton = d3.select("#btn-train");
 const deleteModelButton = d3.select("#btn-delete-model");
 const downloadModelButton = d3.select("#btn-download-model");
+const loadPreTrainedModelButton = d3.select("#btn-load-pretrained-model");
+const resetModelButton = d3.select("#btn-reset-model");
 const saveModelCheckbox = d3.select("#save-model");
 
 // Dynamic routing control components
@@ -87,6 +86,18 @@ downloadModelButton.on("click", async (event) => {
         .catch(err => console.error('Error downloading model:', err));
 });
 
+loadPreTrainedModelButton.on("click", () => {
+    if (confirm("Are you sure you want to load the pre-trained model?")) {
+        modelTrainingTask.sendQuery("loadModel", url = "https://raw.githubusercontent.com/zsoltkebel/capsnet-models/main/small/epochs-2/capsnet.json");
+    }
+});
+
+resetModelButton.on("click", () => {
+    if (confirm("Are you sure you want to reset the model?")) {
+        modelTrainingTask.sendQuery("loadModel", url = ""); // empty URL will reset the model
+    }
+});
+
 // Dynamic routing controls
 lblTotalIterations.text(TOTAL_ITERATIONS);
 lblCurrentIteration.text(state.visibleRoutingIteration + 1);
@@ -116,26 +127,26 @@ document.addEventListener("visibilitychange", () => {
 
 const modelTrainingTask = new QueryableWorker(new URL('../model/web-worker/model-tasks.js', import.meta.url));
 
-modelTrainingTask.sendQuery("loadModel", "https://raw.githubusercontent.com/zsoltkebel/capsnet-models/main/small/capsnet.json");  //TODO pass url based on config
+modelTrainingTask.sendQuery("loadModel", "https://raw.githubusercontent.com/zsoltkebel/capsnet-models/main/small/epochs-2/capsnet.json");  //TODO pass url based on config
 
-modelTrainingTask.addListener("modelDidLoad", () => {
+modelTrainingTask.addListener("modelDidLoad", (config) => {
     d3.select("canvas#input-image").classed("disabled", false);
     d3.select("#btn-train").node().disabled = false;
 
     modelTrainingTask.sendQuery("predictRandom");
+
+    updateModelConfig(config);
 });
 
 modelTrainingTask.addListener("trainingDidStart", (totalBatches) => {
-    trainButton.node().disabled = true;
-    saveModelCheckbox.node().disabled = true;
+    disableControls(true);
 
     totalBatchesLabel.textContent = totalBatches;
     progressBar.max = totalBatches;
 });
 
 modelTrainingTask.addListener("trainingDidFinish", () => {
-    trainButton.node().disabled = false;
-    saveModelCheckbox.node().disabled = false;
+    disableControls(false);
 });
 
 modelTrainingTask.addListener("visualiseSample", (data) => {
@@ -154,6 +165,12 @@ modelTrainingTask.addListener("visualiseSample", (data) => {
     });
 });
 
+function disableControls(disabled) {
+    trainButton.node().disabled = disabled;
+    saveModelCheckbox.node().disabled = disabled;
+    loadPreTrainedModelButton.node().disabled = disabled;
+    resetModelButton.node().disabled = disabled;
+}
 
 /**
  * Visualise a single prediction sample
@@ -180,10 +197,6 @@ function visualiseSample(data) {
     }
 }
 
-function visualiseModelParameters() {
-    //TODO to be implemented
-}
-
 /**
 * 
 * @param {*} cIJ array of shape: [numCaps, inputNumCaps]
@@ -192,48 +205,48 @@ function visualiseModelParameters() {
 async function updateDynamicRoutingLinks(cIJ, { selectedTargetIdx } = {}) {
     const numCaps = cIJ.length;
     const numInputCaps = cIJ[0].length;
-    
+
     const x = svgWidth - 100;
     // console.log(arr)
     // console.log("here")
-    
+
     const linkGen = d3.linkHorizontal()
-    .x(d => d.x)
-    .y(d => d.y);
-    
+        .x(d => d.x)
+        .y(d => d.y);
+
     const upperLayerY = index => (index + 1) * (280 / (numCaps + 1));  // X positions based on index
     const lowerLayerY = index => (index + 1) * (280 / (numInputCaps + 1)); // Stagger Y positions
-    
+
     // TODO dont always show last iteration
-    const links = cIJ.flatMap((sources, targetIdx) => 
+    const links = cIJ.flatMap((sources, targetIdx) =>
         sources.map((couplingCoefficient, sourceIdx) => ({
-        source: { x: 100, y: lowerLayerY(sourceIdx) },  // Needed for link generator
-        target: { x: x, y: upperLayerY(targetIdx) },  // Needed for link generator
-        coeff: couplingCoefficient,                          // Coupling coefficient
-        sourceIdx: sourceIdx,                                // Capsule index in lower layer
-        targetIdx: targetIdx,                                // Capsule index in upper layer
-    })));
-    
+            source: { x: 100, y: lowerLayerY(sourceIdx) },  // Needed for link generator
+            target: { x: x, y: upperLayerY(targetIdx) },  // Needed for link generator
+            coeff: couplingCoefficient,                          // Coupling coefficient
+            sourceIdx: sourceIdx,                                // Capsule index in lower layer
+            targetIdx: targetIdx,                                // Capsule index in upper layer
+        })));
+
     const linksD3 = d3.select("#model svg")
-    .select("#links")
-    .selectAll("path")
-    .data(links)
-    .join("path")
-    .attr("d", linkGen)
-    .attr("fill", "none")
-    .attr("stroke", "black")
-    .attr("stroke-width", 2);
-    
+        .select("#links")
+        .selectAll("path")
+        .data(links)
+        .join("path")
+        .attr("d", linkGen)
+        .attr("fill", "none")
+        .attr("stroke", "black")
+        .attr("stroke-width", 2);
+
     linksD3
-    .transition()
-    .attr("opacity", (d) => {
-        if (selectedTargetIdx != null && d.targetIdx !== selectedTargetIdx) {
-            return 0.0;
-        }
-        // Scale coefficients to be at least 0.05 for visibility
-        return d3.scaleLinear([0, 1], [0.05, 1.0])(d.coeff);
-    });
-    
+        .transition()
+        .attr("opacity", (d) => {
+            if (selectedTargetIdx != null && d.targetIdx !== selectedTargetIdx) {
+                return 0.0;
+            }
+            // Scale coefficients to be at least 0.05 for visibility
+            return d3.scaleLinear([0, 1], [0.05, 1.0])(d.coeff);
+        });
+
 }
 
 /**
@@ -246,7 +259,6 @@ async function updateDigitCaps(state, digitCapsOutput) {
     const arr = digitCapsOutput;//TODO unneccessary
     const highestDigit = tf.argMax(tf.norm(digitCapsOutput, "euclidean", -1), -1).squeeze().arraySync();
     // console.log(highestDigit);
-    // TODO hardcoded first batch (0)
     const capsules = arr.flatMap((vector, digit) => {
         const tensor = tf.tensor(vector);
         return {
@@ -255,33 +267,51 @@ async function updateDigitCaps(state, digitCapsOutput) {
             length: tf.norm(tensor).arraySync(),
         }
     });
-    
+
     const capsuleY = index => (index + 1) * (280 / (capsules.length + 1));  // X positions based on index
-    
+
     const capsulesD3 = d3.select("#model")
-    .select("#digit-caps")
-    .selectAll("div")
-    .data(capsules)
-    .join("div")
-    .attr("id", (d, i) => `primary-capsule-${i}`)
-    .attr("class", "capsule")
-    
+        .select("#digit-caps")
+        .selectAll("div")
+        .data(capsules)
+        .join("div")
+        .attr("id", (d, i) => `primary-capsule-${i}`)
+        .attr("class", "capsule")
+
     capsulesD3
-    .transition()
-    .style("opacity", (d) => d3.scaleLinear([0, 1], [0.1, 1])(d.length))
-    
+        .transition()
+        .style("opacity", (d) => d3.scaleLinear([0, 1], [0.1, 1])(d.length))
+
     capsulesD3
-    .classed("capsule-selected", (d, i) => highestDigit === i)
-    .style("position", "absolute")
-    .style("left", `${x}px`)
-    .style("top", (d, i) => `${capsuleY(i)}px`)
-    .text((d, i) => i);
-    
+        .classed("capsule-selected", (d, i) => highestDigit === i)
+        .style("position", "absolute")
+        .style("left", `${x}px`)
+        .style("top", (d, i) => `${capsuleY(i)}px`)
+        .text((d, i) => i);
+
     capsulesD3
-    .on("mouseenter", (event, d) => 
-        updateDynamicRoutingLinks(state.coeffs[state.visibleRoutingIteration], { selectedTargetIdx: d.digit })
-    )
-    .on("mouseleave", (event, d) => 
-        updateDynamicRoutingLinks(state.coeffs[state.visibleRoutingIteration])
-    );
+        .on("mouseenter", (event, d) =>
+            updateDynamicRoutingLinks(state.coeffs[state.visibleRoutingIteration], { selectedTargetIdx: d.digit })
+        )
+        .on("mouseleave", (event, d) =>
+            updateDynamicRoutingLinks(state.coeffs[state.visibleRoutingIteration])
+        );
+}
+
+function updateModelConfig(config) {    
+    d3.select("#conv1-filters").text(config.conv1.filters);
+    d3.select("#conv1-kernel-size").text(`${config.conv1.kernelSize.join("x")}`);
+    d3.select("#conv1-strides").text(config.conv1.strides[0]);
+
+    const convOutputHeight = Math.floor((28 - config.conv1.kernelSize[0]) / config.conv1.strides[0]) + 1;
+    const primaryCapsOutputHeight = Math.floor((convOutputHeight - config.primaryCaps.kernelSize) / config.primaryCaps.strides) + 1;
+    d3.select("#primary-caps-channels").text(config.primaryCaps.numChannels);
+    d3.select("#primary-caps-capsule-dimension").text(`${config.primaryCaps.capsuleDimension}D`);
+    d3.select("#primary-caps-num-conv-units").text(config.primaryCaps.capsuleDimension);
+    d3.select("#primary-caps-kernel-size").text(`${config.primaryCaps.kernelSize}x${config.primaryCaps.kernelSize}`);
+    d3.select("#primary-caps-strides").text(config.primaryCaps.strides);
+    d3.select("#primary-caps-total-caps").text(`${config.primaryCaps.numChannels}x${primaryCapsOutputHeight}x${primaryCapsOutputHeight}`);  // output height and width are the same in all cases (image is always 28x28)
+    d3.select("#primary-caps-output-vector-dimension").text(`${config.primaryCaps.capsuleDimension}D`);
+
+    d3.select("#digit-caps-capsule-dimension").text(`${config.digitCaps.capsuleDimension}D`);
 }

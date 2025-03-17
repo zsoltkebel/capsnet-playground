@@ -281,7 +281,7 @@ class CapsuleNetwork extends tf.LayersModel {
     getConfig() {
         return {
             ...super.getConfig(),
-            convOptions: this.convOptions,
+            convOptions: this.laye,
             primaryCapsOptions: this.primaryCapsOptions,
             digitCapsOptions: this.digitCapsOptions,
             decoderOptions: this.decoderOptions,

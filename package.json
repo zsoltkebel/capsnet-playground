@@ -1,6 +1,6 @@
 {
   "type": "module",
-  "source": "src/index.html",
+  "source": "src/pages/capsule-network.html",
   "devDependencies": {
     "assert": "^2.1.0",
     "buffer": "^6.0.3",

@@ -120,3 +120,8 @@ canvas#input-image:active {
 .description {
     max-width: 700;
 }
+
+.highlight {
+    background: linear-gradient(120deg, yellow 0%, orange 100%);
+    padding: 0 5px;
+  }

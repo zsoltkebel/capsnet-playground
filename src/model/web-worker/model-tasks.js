@@ -3,8 +3,10 @@ import { mnistGenerator } from "../capsnet/dataset";
 import { CapsuleNetwork } from "../capsnet/capsnet-tensorflow";
 import { trainModel, marginLoss, reconstructionLoss } from "../capsnet/trainer";
 
+const TRAIN_TEST_SPLIT_INDEX = 55000;  // 0-55000 train 55000-65000 test
+
 let model;
-let testDataset = tf.data.generator(mnistGenerator).batch(1).shuffle(100);
+let testDataset = tf.data.generator(() => mnistGenerator(TRAIN_TEST_SPLIT_INDEX, 65000)).batch(1).shuffle(100);
 let iterator;
 testDataset.iterator().then((result) => {
     iterator = result;
@@ -22,7 +24,7 @@ function getSampleOfBatch(tensor, idx = 0) {
 }
 
 const queryableFunctions = {
-    async loadModel(url = "https://raw.githubusercontent.com/zsoltkebel/capsnet-models/main/small/capsnet.json") {
+    async loadModel(url = "https://raw.githubusercontent.com/zsoltkebel/capsnet-models/main/small/epochs-2/capsnet.json") {
         try {
             model = await tf.loadLayersModel(url);
             const decoder = model.getLayer("Decoder"); //TODO decoder unused
@@ -37,12 +39,33 @@ const queryableFunctions = {
             console.warn(`Could not load model from URL: '${url}', reason:\n`, error);
         }
 
-        reply("modelDidLoad",); //TODO additional info?
+        await model.save('indexeddb://capsnet');
+        console.log("Saved model to browser cache at 'indexeddb://capsnet'");
+
+        const config = {
+            conv1: {
+                filters: model.getLayer("ReLU_Conv1").getConfig().filters,
+                kernelSize: model.getLayer("ReLU_Conv1").getConfig().kernelSize,
+                strides: model.getLayer("ReLU_Conv1").getConfig().strides,
+            },
+            primaryCaps: {
+                capsuleDimension: model.getLayer("PrimaryCaps").getConfig().capsuleDimension,
+                numChannels: model.getLayer("PrimaryCaps").getConfig().numChannels,
+                kernelSize: model.getLayer("PrimaryCaps").getConfig().kernelSize,
+                strides: model.getLayer("PrimaryCaps").getConfig().strides,
+            },
+            digitCaps: {
+                capsuleDimension: model.getLayer("DigitCaps").getConfig().capsuleDimension,
+                numCapsules: model.getLayer("DigitCaps").getConfig().numCapsules,
+                routingIterations: model.getLayer("DigitCaps").getConfig().routingIterations,
+            },
+        }
+        reply("modelDidLoad", config);
     },
 
     async trainModel({epochs = 1, batchSize = 64, saveModelToBrowserCache = true} = {}) {
-        const dataset = tf.data.generator(mnistGenerator).batch(batchSize);
-        const totalBatches = Math.ceil(65000 / 64); //TODO somehow should get this from dataset
+        const dataset = tf.data.generator(() => mnistGenerator(0, TRAIN_TEST_SPLIT_INDEX)).batch(batchSize);
+        const totalBatches = Math.ceil(TRAIN_TEST_SPLIT_INDEX / batchSize); //TODO somehow should get this from dataset
 
         reply("trainingDidStart", totalBatches);
 

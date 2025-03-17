@@ -41,13 +41,17 @@ async function fetchBatch(startIndex, batchSize) {
     return new Uint8Array(buffer);
 }
 
-async function* mnistGenerator(bufferSize = 50) {
+async function* mnistGenerator(startIdx = 0, endIdx = 65000, bufferSize = 50) {
+    if (endIdx > TOTAL_SAMPLES) {
+        throw Error("End Index cannot be larger than total dataset size");
+    }
+    
     labels = await fetchLabels();
 
     let bufferIdx = 0;
     buffer = await fetchBatch(0, bufferSize);
 
-    for (let i = 0; i < TOTAL_SAMPLES; i++) {
+    for (let i = startIdx; i < endIdx; i++) {
         if (bufferIdx >= bufferSize) {
             bufferStart = i;
             bufferIdx = 0;
