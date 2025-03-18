@@ -1,6 +1,6 @@
 import * as tf from "@tensorflow/tfjs";
 import * as d3 from "d3";
-import { renderImageFromData } from "./model/visualise";
+import { renderImage } from "./model/visualise";
 import { QueryableWorker } from "./model/web-worker/queryable-worker";
 
 d3.select("#btn-train").node().disabled = true;
@@ -177,8 +177,8 @@ function disableControls(disabled) {
  * @param {*} param0 
  */
 function visualiseSample(data) {
-    renderImageFromData(data.image, 0, canvasImage);
-    renderImageFromData(data.reconstruction, 0, canvasReconstructedImage);
+    renderImage(data.image, canvasImage);
+    renderImage(data.reconstruction, canvasReconstructedImage);
 
     const trueLabel = tf.argMax(data.label, -1).arraySync();
     const predictedLabel = tf.argMax(tf.norm(data.capsuleOutputs, "euclidean", -1), -1).arraySync();

@@ -1,109 +1,11 @@
-import * as d3 from "d3";
-import * as tf from "@tensorflow/tfjs";
-import { CapsuleNetwork, DigitCaps } from "./capsnet/capsnet-tensorflow";
-
-const CANVAS_SIZE = 280;
-
-const canvasImage = d3.select("canvas#input-image").node();
-const canvasReconstructedImage = d3.select("canvas#reconstruction-image").node();
-
-const marginLossLabel = d3.select("#margin-loss-label span").node();
-const reconstructionLossLabel = d3.select("#reconstruction-loss-label span").node();
-
-const currentBatchLabel = d3.select("#current-batch").node();
-const totalBatchesLabel = d3.select("#total-batches").node();
-const progressBar = d3.select("progress").node();
-
-
-
-
-function updatePrimaryCaps(numCaps, { lowerLayerX=400, upperLayerX=1020, selectedTargetIdx } = {}) {
-    //TODO maybe use weight matrix or some other tensor to have more info about capsules?
-    
-    const arr = Array.from({ length: numCaps }, (_, i) => i);
-    
-    const capsuleY = index => (index + 1) * (280 / (numCaps + 1));  // X positions based on index
-    
-    d3.select("#model")
-    .select("#primary-caps")
-    .selectAll("div")
-    .data(arr)
-    .join()
-    .attr("id", (d, i) => `primary-capsule-${i}`)
-    .attr("class", "capsule")
-    .style("position", "absolute")
-    .style("left", `${upperLayerX}px`)
-    .style("top", (d, i) => `${45 + capsuleY(i)}px`)
-    .text((d, i) => i);
-    // .style("line-height", `${CAPSULE_HEIGHT}px`)
-    // .style("height", `${CAPSULE_HEIGHT}px`)
-    // .style("width", `${CAPSULE_WIDTH}px`)
-}
-
-async function visualiseBatch(model, batchIdx, xs, y1, y2, o1, o2, marginLoss, reconstructionLoss) {
-    updateDigitCaps(model, o1);
-    
-    const label = y1.slice([0, 0], [1, y1.shape[1]]).squeeze(0);
-    const capsuleOut = o1.slice([0, 0, 0], [1, o1.shape[1], o1.shape[2]]).squeeze(0);
-    const inputImg = xs.slice([0, 0, 0, 0], [1, xs.shape[1], xs.shape[2], xs.shape[3]]).squeeze(0);
-    const reconImg = o2.slice([0, 0, 0, 0], [1, o2.shape[1], o2.shape[2], o2.shape[3]]).squeeze(0);
-    
-    visualisePrediction(model, inputImg, label, capsuleOut, reconImg);
-    
-    // Update progress bar
-    currentBatchLabel.textContent = batchIdx + 1;
-    progressBar.value = batchIdx;
-    
-    // Update loss labels
-    marginLossLabel.textContent = marginLoss.toFixed(8);
-    reconstructionLossLabel.textContent = reconstructionLoss.toFixed(8);
-}
-
 /**
+ * Draw a grayscaled 28x28 image onto the canvas.
  * 
- * @param {CapsuleNetwork} model 
- * @param {tf.Tensor} image - 3D tensor with 1 channel
- * @param {tf.Tensor} label - 1D tensor, one-hot encoding of label digit.
- * @param {tf.Tensor} capsuleOutput - 3D tensor with 1 channel
- * @param {tf.Tensor} reconstructedImage - 3D tensor with 1 channel
+ * @param {[number]} pixels The flat array of pixels of the image, instead of rgba values only a single value
+ * @param {HTMLCanvasElement} canvas The html dom canvas element to render image onto
  */
-async function visualisePrediction(model, image, label, capsuleOutput, reconstructedImage) {
-    const labelDigit = tf.argMax(label).arraySync();
-    const capsuleDigit = tf.argMax(tf.norm(capsuleOutput, 'euclidean', -1)).arraySync();
-
-    updateDigitCaps(model, capsuleOutput);
-    
-    renderInput(image.mul(255), labelDigit);
-    renderRecunstruction(reconstructedImage.mul(255), capsuleDigit);
-    
-    // Update loss labels
-    // marginLossLabel.textContent = marginLoss.toFixed(8);
-    // reconstructionLossLabel.textContent = reconstructionLoss.toFixed(8);
-}
-
-async function renderInput(image, label) {
-    // const canvas = d3.select("canvas#input-image").node();
-    await renderImage(image, label, canvasImage);
-    d3.select("#input-label .digits").text(label);
-}
-
-async function renderRecunstruction(image, label) {
-    // const canvas = d3.select("canvas#reconstruction-image").node();
-    await renderImage(image, label, canvasReconstructedImage);
-    d3.select("#reconstruction-label .digits").text(label);
-}
-
-async function renderImage(image, label, canvas) {
-    // console.log("label: " + label);
-    
-    // Convert image tensor to a regular JS array for rendering
-    const imageArray = await image.array();
-    
-    // Create a canvas element in the DOM
-    // const canvas = d3.select("canvas").node();
-    // const canvas = document.createElement('canvas');
-    // document.body.appendChild(canvas);
-    const ctx = canvas.getContext('2d');
+async function renderImage(pixels, canvas) {
+    const ctx = canvas.getContext("2d");
     
     ctx.imageSmoothingEnabled = false;
     
@@ -111,9 +13,7 @@ async function renderImage(image, label, canvas) {
     canvas.width = 28;
     canvas.height = 28;
     
-    // Convert the image array to a format suitable for the canvas (RGBA format)
     const imageData = ctx.createImageData(28, 28);
-    const pixels = imageArray.flat();  // Flatten the 2D array to 1D
     
     for (let i = 0; i < pixels.length; i++) {
         imageData.data[i * 4] = pixels[i];     // Red channel (greyscale image)
@@ -126,35 +26,4 @@ async function renderImage(image, label, canvas) {
     ctx.putImageData(imageData, 0, 0);
 }
 
-async function renderImageFromData(pixels, label, canvas) {
-    // console.log("label: " + label);
-    // console.log("image data ", image);
-    
-    // Create a canvas element in the DOM
-    // const canvas = d3.select("canvas").node();
-    // const canvas = document.createElement('canvas');
-    // document.body.appendChild(canvas);
-    const ctx = canvas.getContext('2d');
-    
-    ctx.imageSmoothingEnabled = false;
-    
-    // Set the canvas size to match the image (28x28 pixels)
-    canvas.width = 28;
-    canvas.height = 28;
-    
-    // Convert the image array to a format suitable for the canvas (RGBA format)
-    const imageData = ctx.createImageData(28, 28);
-    // const pixels = image.flat();  // Flatten the 2D array to 1D
-    
-    for (let i = 0; i < pixels.length; i++) {
-        imageData.data[i * 4] = pixels[i];     // Red channel (greyscale image)
-        imageData.data[i * 4 + 1] = pixels[i]; // Green channel (greyscale image)
-        imageData.data[i * 4 + 2] = pixels[i]; // Blue channel (greyscale image)
-        imageData.data[i * 4 + 3] = 255;       // Alpha channel (fully opaque)
-    }
-    
-    // Put the image data on the canvas
-    ctx.putImageData(imageData, 0, 0);
-}
-
-export { updateDynamicRoutingLinks, updateDigitCaps, updatePrimaryCaps, visualiseBatch, visualisePrediction, renderImageFromData };
+export { renderImage };

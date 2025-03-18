@@ -6,16 +6,17 @@ import { trainModel, marginLoss, reconstructionLoss } from "../capsnet/trainer";
 const TRAIN_TEST_SPLIT_INDEX = 55000;  // 0-55000 train 55000-65000 test
 
 let model;
-let testDataset = tf.data.generator(() => mnistGenerator(TRAIN_TEST_SPLIT_INDEX, 65000)).batch(1).shuffle(100);
+let testDataset = tf.data.generator(() => mnistGenerator(TRAIN_TEST_SPLIT_INDEX)).batch(1).shuffle(100);
 let iterator;
 testDataset.iterator().then((result) => {
     iterator = result;
 });
 
 /**
-* Return first element of batch of tensors
-* @param {*} tensor 
-* @returns 
+* Return a single sample of batch of tensors.
+
+* @param {tf.Tensor} tensor Batch of tensors
+* @returns {tf.Tensor} A single sample
 */
 function getSampleOfBatch(tensor, idx = 0) {
     const begin = [idx].concat(tensor.shape.slice(1).map(() => 0));

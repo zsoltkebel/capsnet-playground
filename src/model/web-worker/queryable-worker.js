@@ -1,3 +1,6 @@
+/**
+ * A wrapper class for wrokers with added infrastructure to handling multiple function executions and listeners.
+ */
 export class QueryableWorker {
     constructor(url, defaultListener, onError) {
         this.worker = new Worker(url);

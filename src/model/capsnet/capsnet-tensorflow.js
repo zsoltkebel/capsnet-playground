@@ -66,11 +66,11 @@ class PrimaryCaps extends tf.layers.Layer {
 }
 
 /**
+ * Compute dynamic routing.
  * 
- * @param {*} uHat 
- * @param {*} iterations 
- * @param {*} param2 
- * @returns returns capsule outputs and a tensor of coupling coefficients in the shape [batch_size, iterations, numCaps, numInputCaps]
+ * @param {tf.Tensor} uHat Tensor of shape [batchSize, numOutCaps, numInCaps, outCapsDimension], these are the rediction vectors
+ * @param {number} iterations Number of routing iterations to compute
+ * @returns {[tf.Tensor, tf.Tensor]} returns capsule outputs in shape [batchSize, numOutCaps, outCapsDimension] and a tensor of coupling coefficients in the shape [batchSize, iterations, numOutCaps, numInCaps]
  */
 function dynamicRouting(uHat, iterations = 3) {
     const batchSize = uHat.shape[0];
@@ -102,6 +102,13 @@ function dynamicRouting(uHat, iterations = 3) {
     return [vJ, tf.keep(tf.stack(cIJs, 1))];
 }
 
+/**
+ * Apply the quashing function on a tensor along a given axis, keeping the original tensor's dimensions.
+ * 
+ * @param {tf.Tensor} vectors The tensor to operate on
+ * @param {number} axis The axis along which to compute squash (defaults to -1 which corresponds to the last dimension)
+ * @returns {tf.Tensor} The tensor with the squashed dimension
+ */
 function squash(vectors, axis = -1) {
     const squaredNorm = vectors.square().sum(axis, true);
     const scale = squaredNorm.div(squaredNorm.add(1));
@@ -291,10 +298,14 @@ class CapsuleNetwork extends tf.LayersModel {
 
 /**
 * Create the Decoder model according to the description in "Dynamic Linking Between Capsules" paper.
-* @param {*} param0 
-* @returns 
+
+* @param {number} numCapsules Number of incoming capsules
+* @param {number} capsuleDimension Dimension of incoming capsules
+* @param {number} imageSize The number of pixels of image in each direction width and height
+* @param {number} imageChannels Number of channels for resulting image
+* @returns {tf.Sequential} The decoder model
 */
-function createDecoder({ numCapsules=10, capsuleDimension=16, imageSize=28, imageChannels=1 } = {}) {
+function createDecoder({ numCapsules = 10, capsuleDimension = 16, imageSize = 28, imageChannels = 1 } = {}) {
     //TODO perhaps decoder could get an extra tensor or dimension for true labels of the image??
     return tf.sequential({
         layers: [
@@ -314,4 +325,4 @@ tf.serialization.registerClass(DigitCaps);
 tf.serialization.registerClass(Mask);
 tf.serialization.registerClass(CapsuleNetwork);
 
-export { CapsuleNetwork, DigitCaps };
+export { CapsuleNetwork };
