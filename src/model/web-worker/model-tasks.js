@@ -25,7 +25,7 @@ function getSampleOfBatch(tensor, idx = 0) {
 }
 
 const queryableFunctions = {
-    async loadModel(url = "https://raw.githubusercontent.com/zsoltkebel/capsnet-models/main/small/epochs-2/capsnet.json") {
+    async loadModel(url) {
         try {
             model = await tf.loadLayersModel(url);
             const decoder = model.getLayer("Decoder"); //TODO decoder unused
@@ -37,7 +37,9 @@ const queryableFunctions = {
         } catch (error) {
             model = new CapsuleNetwork();
 
-            console.warn(`Could not load model from URL: '${url}', reason:\n`, error);
+            if (url) {
+                console.warn(`Could not load model from URL: '${url}', reason:\n`, error);
+            }
         }
 
         await model.save('indexeddb://capsnet');
@@ -72,12 +74,13 @@ const queryableFunctions = {
 
         try {
             await trainModel(model, dataset, epochs, {
-                callback: async (model, batchIdx, images, labels, capsOutputs, reconstructions, coeffs, marginLoss, reconstructionLoss) => {
+                reconLossWeight: 1,
+                callback: (model, batchIdx, images, labels, capsOutputs, reconstructions, coeffs, marginLoss, reconstructionLoss) => {
                     // Pass first instance of batch to visualise
 
-                    const imageArray = await getSampleOfBatch(images).mul(255).data();
+                    const imageArray = getSampleOfBatch(images).mul(255).arraySync().flat();
                     const labelArray = getSampleOfBatch(labels).arraySync();
-                    const reconstructionArray = await getSampleOfBatch(reconstructions).mul(255).data();
+                    const reconstructionArray = getSampleOfBatch(reconstructions).mul(255).arraySync().flat();
                     const coeffsArray = getSampleOfBatch(coeffs).arraySync();
                     const capsuleOutputsArray = getSampleOfBatch(capsOutputs).arraySync();
 
@@ -92,7 +95,7 @@ const queryableFunctions = {
                         marginLoss: marginLoss,
                         reconstructionLoss: reconstructionLoss,
                     });
-                }
+                },
             });
         } finally {
             if (saveModelToBrowserCache) {

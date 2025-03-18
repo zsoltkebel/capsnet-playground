@@ -32,6 +32,9 @@ const btnNextIteration = d3.select("#btn-routing-next");
 const lblCurrentIteration = d3.select("#routing-visible-iteration");
 const lblTotalIterations = d3.select("#routing-total-iterations");
 
+// Loading indicator
+const loadingIndicator = d3.select("#loading");
+
 let state = {
     visibleRoutingIteration: 2,  // 0-(total routing iterations-1)
 };  // Object storing all the data needed for the visualisation
@@ -89,12 +92,14 @@ downloadModelButton.on("click", async (event) => {
 loadPreTrainedModelButton.on("click", () => {
     if (confirm("Are you sure you want to load the pre-trained model?")) {
         modelTrainingTask.sendQuery("loadModel", "https://raw.githubusercontent.com/zsoltkebel/capsnet-models/main/small/epochs-2/capsnet.json");
+        loadingIndicator.style("visibility", "visible");
     }
 });
 
 resetModelButton.on("click", () => {
     if (confirm("Are you sure you want to reset the model?")) {
         modelTrainingTask.sendQuery("loadModel", ""); // empty URL will reset the model
+        loadingIndicator.style("visibility", "visible");
     }
 });
 
@@ -127,7 +132,8 @@ document.addEventListener("visibilitychange", () => {
 
 const modelTrainingTask = new QueryableWorker(new URL('./model/web-worker/model-tasks.js', import.meta.url));
 
-modelTrainingTask.sendQuery("loadModel", "https://raw.githubusercontent.com/zsoltkebel/capsnet-models/main/small/epochs-2/capsnet.json");  //TODO pass url based on config
+
+modelTrainingTask.sendQuery("loadModel");  //TODO pass url based on config
 
 modelTrainingTask.addListener("modelDidLoad", (config) => {
     d3.select("canvas#input-image").classed("disabled", false);
@@ -162,6 +168,7 @@ modelTrainingTask.addListener("visualiseSample", (data) => {
 
     requestAnimationFrame(() => {
         visualiseSample(state);
+        loadingIndicator.style("visibility", "hidden");
     });
 });
 

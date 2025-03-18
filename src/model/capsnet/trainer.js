@@ -67,7 +67,7 @@ async function trainModel(model, dataset, epochs, {
                     const coeffs = model.getLayer("DigitCaps").couplingCoefficients;
 
                     // Use values in this batch to invoke the callback
-                    callback(model, batchIndex, tf.keep(x), tf.keep(y), tf.keep(digitCapsOutputs), tf.keep(reconstructions), tf.keep(coeffs), mLoss.arraySync(), rLoss.arraySync());
+                    callback(model, batchIndex, x, y, digitCapsOutputs, reconstructions, coeffs, mLoss.arraySync(), rLoss.arraySync());
                     
                     return loss;
                 });

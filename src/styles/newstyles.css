@@ -4,9 +4,22 @@ body {
     align-items: center; /* Optional: centers content horizontally */
 }
 
+#section-model {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    background-color: whitesmoke;
+}
+
+#loading {
+    width: 100%;
+}
+
 #model {
     /* position: relative; */
     min-height: 280px;
+    max-width: 1300px;
     width: 100%;
     background-color: whitesmoke;
     display: flex;
