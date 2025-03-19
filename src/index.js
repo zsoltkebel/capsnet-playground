@@ -35,9 +35,11 @@ const lblTotalIterations = d3.select("#routing-total-iterations");
 // Loading indicator
 const loadingIndicator = d3.select("#loading");
 
+// State object stores everything needed to visualise a sample
 let state = {
     visibleRoutingIteration: 2,  // 0-(total routing iterations-1)
-};  // Object storing all the data needed for the visualisation
+    selectedDigit: null,
+};
 
 let svgWidth = d3.select("svg").node().getBoundingClientRect().width;
 window.addEventListener("resize", () => {
@@ -180,9 +182,9 @@ function disableControls(disabled) {
 }
 
 /**
- * Visualise a single prediction sample
- * @param {*} param0 
- */
+* Visualise a single prediction sample
+* @param {*} param0 
+*/
 function visualiseSample(data) {
     renderImage(data.image, canvasImage);
     renderImage(data.reconstruction, canvasReconstructedImage);
@@ -192,7 +194,7 @@ function visualiseSample(data) {
     inputLabel.textContent = trueLabel;
     reconstructionLabel.textContent = predictedLabel;
 
-    updateDynamicRoutingLinks(data.coeffs[state.visibleRoutingIteration], { upperLayerX: svgWidth - 60 });
+    updateRoutingLinks(data.coeffs[state.visibleRoutingIteration], state.selectedDigit);
     updateDigitCaps(data, data.capsuleOutputs, { upperLayerX: svgWidth - 30 });
 
     marginLossLabel.textContent = data.marginLoss.toFixed(8);
@@ -206,33 +208,35 @@ function visualiseSample(data) {
 
 /**
 * 
-* @param {*} cIJ array of shape: [numCaps, inputNumCaps]
-* @param {*} param1 
+* @param {[number]} coeffs array of shape: [numCaps, inputNumCaps] containing the coupling coefficients from the dynamic routing calculation
+* @param {number} selectedDigit if not null or undefined, only the links routing to this digit will be shown
 */
-async function updateDynamicRoutingLinks(cIJ, { selectedTargetIdx } = {}) {
-    const numCaps = cIJ.length;
-    const numInputCaps = cIJ[0].length;
+async function updateRoutingLinks(coeffs, selectedDigit) {
+    const numCaps = coeffs.length;
+    const numInputCaps = coeffs[0].length;
 
     const x = svgWidth - 100;
-    // console.log(arr)
-    // console.log("here")
 
     const linkGen = d3.linkHorizontal()
         .x(d => d.x)
         .y(d => d.y);
 
-    const upperLayerY = index => (index + 1) * (280 / (numCaps + 1));  // X positions based on index
-    const lowerLayerY = index => (index + 1) * (280 / (numInputCaps + 1)); // Stagger Y positions
+    const upperLayerY = index => (index + 1) * (280 / (numCaps + 1));
+    const lowerLayerY = index => (index + 1) * (280 / (numInputCaps + 1));
 
-    // TODO dont always show last iteration
-    const links = cIJ.flatMap((sources, targetIdx) =>
-        sources.map((couplingCoefficient, sourceIdx) => ({
+    const links = coeffs.flatMap((sources, targetIdx) => {
+        // filter links if a digit is selected
+        if (selectedDigit != null && targetIdx !== selectedDigit) {
+            return []
+        }
+        return sources.map((couplingCoefficient, sourceIdx) => ({
             source: { x: 100, y: lowerLayerY(sourceIdx) },  // Needed for link generator
             target: { x: x, y: upperLayerY(targetIdx) },  // Needed for link generator
             coeff: couplingCoefficient,                          // Coupling coefficient
             sourceIdx: sourceIdx,                                // Capsule index in lower layer
             targetIdx: targetIdx,                                // Capsule index in upper layer
-        })));
+        }))
+    });
 
     const linksD3 = d3.select("#model svg")
         .select("#links")
@@ -247,13 +251,24 @@ async function updateDynamicRoutingLinks(cIJ, { selectedTargetIdx } = {}) {
     linksD3
         .transition()
         .attr("opacity", (d) => {
-            if (selectedTargetIdx != null && d.targetIdx !== selectedTargetIdx) {
-                return 0.0;
-            }
             // Scale coefficients to be at least 0.05 for visibility
             return d3.scaleLinear([0, 1], [0.05, 1.0])(d.coeff);
         });
 
+    // Display weights if there is a selected digit
+    if (selectedDigit != null) {
+        d3.select("#model svg")
+            .selectAll("text")
+            .data(links)
+            .join("text")
+            .attr("x", (d) => d.source.x)
+            .attr("y", (d) => d.source.y - 5)
+            .text((d) => d.coeff.toFixed(4));
+    } else {
+        d3.select("#model svg")
+            .selectAll("text")
+            .remove();
+    }
 }
 
 /**
@@ -290,7 +305,8 @@ async function updateDigitCaps(state, digitCapsOutput) {
         .style("opacity", (d) => d3.scaleLinear([0, 1], [0.1, 1])(d.length))
 
     capsulesD3
-        .classed("capsule-selected", (d, i) => highestDigit === i)
+        .classed("capsule-predicted", (d, i) => highestDigit === i)
+        .classed("capsule-selected", (d, i) => state.selectedDigit === i)
         .style("position", "absolute")
         .style("left", `${x}px`)
         .style("top", (d, i) => `${capsuleY(i)}px`)
@@ -298,14 +314,23 @@ async function updateDigitCaps(state, digitCapsOutput) {
 
     capsulesD3
         .on("mouseenter", (event, d) =>
-            updateDynamicRoutingLinks(state.coeffs[state.visibleRoutingIteration], { selectedTargetIdx: d.digit })
+            updateRoutingLinks(state.coeffs[state.visibleRoutingIteration], d.digit)
         )
         .on("mouseleave", (event, d) =>
-            updateDynamicRoutingLinks(state.coeffs[state.visibleRoutingIteration])
-        );
+            updateRoutingLinks(state.coeffs[state.visibleRoutingIteration], state.selectedDigit)
+        )
+        .on("click", (event, d) => {
+            if (state.selectedDigit === d.digit) {
+                state.selectedDigit = null;
+            } else {
+                state.selectedDigit = d.digit;
+            }
+            capsulesD3.classed("capsule-selected", (d) => state.selectedDigit === d.digit);
+            updateRoutingLinks(state.coeffs[state.visibleRoutingIteration], state.selectedDigit)
+        });
 }
 
-function updateModelConfig(config) {    
+function updateModelConfig(config) {
     d3.select("#conv1-filters").text(config.conv1.filters);
     d3.select("#conv1-kernel-size").text(`${config.conv1.kernelSize.join("x")}`);
     d3.select("#conv1-strides").text(config.conv1.strides[0]);

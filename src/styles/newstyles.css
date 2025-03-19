@@ -106,11 +106,16 @@ canvas#input-image:active {
     cursor: default;
     box-sizing: border-box;
     line-height: 1;
+    cursor: pointer;
+}
+
+.capsule-predicted {
+    border: 2px solid black;
+    border-radius: 2px;
 }
 
 .capsule-selected {
-    border: 2px solid black;
-    border-radius: 2px;
+    background-color: gray;
 }
 
 .capsule:hover {
