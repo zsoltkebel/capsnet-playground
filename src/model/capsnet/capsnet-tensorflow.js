@@ -325,4 +325,4 @@ tf.serialization.registerClass(DigitCaps);
 tf.serialization.registerClass(Mask);
 tf.serialization.registerClass(CapsuleNetwork);
 
-export { CapsuleNetwork };
+export { CapsuleNetwork, squash, dynamicRouting };
