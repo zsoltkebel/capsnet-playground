@@ -2,6 +2,7 @@ import * as tf from "@tensorflow/tfjs";
 import * as d3 from "d3";
 import { renderImage } from "./model/visualise";
 import { QueryableWorker } from "./model/web-worker/queryable-worker";
+import { } from "./model/capsnet/capsnet-tensorflow";  // Empty import needed to register custom classes for loading
 
 d3.select("#btn-train").node().disabled = true;
 
@@ -19,7 +20,6 @@ const inputLabel = d3.select("#input-label .digits").node();
 const reconstructionLabel = d3.select("#reconstruction-label .digits").node();
 
 const trainButton = d3.select("#btn-train");
-const deleteModelButton = d3.select("#btn-delete-model");
 const downloadModelButton = d3.select("#btn-download-model");
 const loadPreTrainedModelButton = d3.select("#btn-load-pretrained-model");
 const resetModelButton = d3.select("#btn-reset-model");
@@ -41,6 +41,9 @@ let state = {
     selectedDigit: null,
 };
 
+// Web worker that handles model loading, training and prediction
+const modelTrainingTask = new QueryableWorker(new URL('./model/web-worker/model-tasks.js', import.meta.url));
+
 let svgWidth = d3.select("svg").node().getBoundingClientRect().width;
 window.addEventListener("resize", () => {
     console.log("Window resized!");
@@ -51,40 +54,32 @@ window.addEventListener("resize", () => {
 
 // Handle input image click
 d3.select("canvas#input-image")
-    .on("click", (event) => {
-        // predictRandom();
+    .on("click", () => {
         modelTrainingTask.sendQuery("predictRandom");
-        // webWorker.postMessage({ type: "predict" });
     });
 
 // Handle train button click
-trainButton
-    .on("click", async (event) => {
-        const saveModel = saveModelCheckbox.node().checked;
-        console.log("save model?", saveModel);
-        // webWorker.postMessage({ type: "start_training" });
-        modelTrainingTask.sendQuery("trainModel", { saveModelToBrowserCache: saveModel }); //TODO could send additional params here like epoch, batch size etc
+trainButton.on("click", async () => {
+    const saveModel = saveModelCheckbox.node().checked;
 
-        // onTrainClicked();
-        // data.loadFileInBatches();
+    modelTrainingTask.sendQuery("trainModel", { saveModelToBrowserCache: saveModel }); //TODO could send additional params here like epoch, batch size etc
+});
 
-        // data.saveGrayscaleDatasetToFile();
-        // data.fetchBatch(1, 64);
-
-        // t = await data.loadCompressedTensorFromUint8GitHub();
-        // console.log("shape: ", t.shape);
-        // console.log(t);
-    });
-
-deleteModelButton.on("click", async (event) => {
-    if (confirm("Are you sure you want to delete cached model?")) {
-        await tf.io.removeModel('indexeddb://capsnet')
-            .then(() => console.log('Model deleted successfully'))
-            .catch(err => console.error('Error deleting model:', err));
+saveModelCheckbox.on("change", (event) => {
+    if (!event.target.checked) {
+        if (confirm("Are you sure you want to delete model from browser cache?")) {
+            // Delete cached model
+            tf.io.removeModel('indexeddb://capsnet')
+                .then(() => console.log('Model deleted successfully'))
+                .catch(err => console.error('Error deleting model:', err));
+        } else {
+            // Revert button check
+            event.target.checked = true;
+        }
     }
 });
 
-downloadModelButton.on("click", async (event) => {
+downloadModelButton.on("click", async () => {
     const model = await tf.loadLayersModel("indexeddb://capsnet");
     model.save("downloads://capsnet")
         .then(() => console.log('Model downloaded successfully'))
@@ -109,7 +104,7 @@ resetModelButton.on("click", () => {
 lblTotalIterations.text(TOTAL_ITERATIONS);
 lblCurrentIteration.text(state.visibleRoutingIteration + 1);
 
-btnPreviousIteration.on("click", (event) => {
+btnPreviousIteration.on("click", () => {
     if (state.visibleRoutingIteration > 0) {
         state.visibleRoutingIteration--;
         lblCurrentIteration.text(state.visibleRoutingIteration + 1);
@@ -117,7 +112,7 @@ btnPreviousIteration.on("click", (event) => {
     }
 });
 
-btnNextIteration.on("click", (event) => {
+btnNextIteration.on("click", () => {
     if (state.visibleRoutingIteration < TOTAL_ITERATIONS - 1) {
         state.visibleRoutingIteration++;
         lblCurrentIteration.text(state.visibleRoutingIteration + 1);
@@ -127,16 +122,14 @@ btnNextIteration.on("click", (event) => {
 
 document.addEventListener("visibilitychange", () => {
     if (!document.hidden && state) {
-        console.log("Visibility changed");
+        // Update visualisation when page becomes visible again
         visualiseSample(state);
     }
 });
 
-const modelTrainingTask = new QueryableWorker(new URL('./model/web-worker/model-tasks.js', import.meta.url));
+modelTrainingTask.sendQuery("loadModel");
 
-
-modelTrainingTask.sendQuery("loadModel");  //TODO pass url based on config
-
+// Update UI when model loads
 modelTrainingTask.addListener("modelDidLoad", (config) => {
     d3.select("canvas#input-image").classed("disabled", false);
     d3.select("#btn-train").node().disabled = false;
@@ -146,6 +139,7 @@ modelTrainingTask.addListener("modelDidLoad", (config) => {
     updateModelConfig(config);
 });
 
+// Update UI when model training begins
 modelTrainingTask.addListener("trainingDidStart", (totalBatches) => {
     disableControls(true);
 
@@ -153,10 +147,12 @@ modelTrainingTask.addListener("trainingDidStart", (totalBatches) => {
     progressBar.max = totalBatches;
 });
 
+// Update UI when model training finished
 modelTrainingTask.addListener("trainingDidFinish", () => {
     disableControls(false);
 });
 
+// Update UI when a model reports a run
 modelTrainingTask.addListener("visualiseSample", (data) => {
     state = {
         ...state,
@@ -164,7 +160,7 @@ modelTrainingTask.addListener("visualiseSample", (data) => {
     };
 
     if (document.hidden) {
-        console.log("Skipping visualisation because page is hidden");
+        // Skipping visualisation because page is hidden
         return;
     }
 
@@ -182,8 +178,9 @@ function disableControls(disabled) {
 }
 
 /**
-* Visualise a single prediction sample
-* @param {*} param0 
+* Visualise a single prediction sample.
+*
+* @param {{batchIdx: number, image: [number], label: [number], capsuleOutputs: [[number]], reconstruction: [number], coeffs: [[[number]]], marginLoss: number, reconstructionLoss: number}} data 
 */
 function visualiseSample(data) {
     renderImage(data.image, canvasImage);

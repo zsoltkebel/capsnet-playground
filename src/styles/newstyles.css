@@ -1,14 +1,19 @@
 body {
     display: flex;
-    flex-direction: column; /* Arrange child elements vertically */
-    align-items: center; /* Optional: centers content horizontally */
+    flex-direction: column;
+    align-items: center;
+    justify-content: stretch;
+}
+
+header {
+    text-align: center;
 }
 
 #section-model {
     display: flex;
     flex-direction: column;
     align-items: center;
-    width: 100%;
+    align-self: stretch;
     background-color: whitesmoke;
 }
 
@@ -17,7 +22,6 @@ body {
 }
 
 #model {
-    /* position: relative; */
     min-height: 280px;
     max-width: 1300px;
     width: 100%;
@@ -33,7 +37,7 @@ body {
     flex: 1;
     min-width: 100px;
     max-width: 280px;
-    gap: 10px
+    gap: 10px;
 }
 
 .dynamic-routing-column {
@@ -42,13 +46,10 @@ body {
     flex: 1;
 }
 
-
-
 #controls {
-    /* display: block; */
-    /* top: 100%; */
+    display: flex;
+    gap: 10px;
     width: 100%;
-    /* background-color: aliceblue; */
     padding: 20px;
     box-sizing: border-box;
 }
@@ -62,21 +63,18 @@ canvas {
 }
 
 canvas#input-image {
-    left: 20px;
     cursor: pointer;
 }
 
 canvas#input-image:hover {
     transform: scale(0.98);
-    opacity: 0.7; /* Canvas fades to 70% opacity */
-}
-
-canvas#reconstruction-image {
-    right: 20px;
+    opacity: 0.7;
+    /* Canvas fades to 70% opacity */
 }
 
 canvas#input-image:active {
-    transform: scale(0.95); /* Shrinks canvas to 90% */
+    transform: scale(0.95);
+    /* Shrinks canvas to 90% */
 }
 
 .disabled {
@@ -95,51 +93,51 @@ canvas#input-image:active {
     font-weight: bold;
 }
 
+#capsule-network {
+    position: relative;
+}
+
 #model svg {
     width: 100%;
     min-height: 280;
 }
 
 .capsule {
-    padding: 2 8px 2 8px;
-    transform: translate(-50%, 50%);
+    padding: 4 10 4 10;
+    transform: translate(-50%, -50%);
     cursor: default;
     box-sizing: border-box;
     line-height: 1;
     cursor: pointer;
 }
 
+.capsule:hover {
+    background-color: gray;
+    border-radius: 99px;
+}
+
 .capsule-predicted {
     border: 2px solid black;
-    border-radius: 2px;
+    border-radius: 99px;
 }
 
 .capsule-selected {
     background-color: gray;
+    border-radius: 99px;
 }
 
-.capsule:hover {
-    background-color: gray;
-    border-radius: 2px;
-}
-
-#dynamic-routing-controls {    
+#dynamic-routing-controls {
     display: flex;
     justify-content: center;
     gap: 4px;
 }
 
-.arrow-container {
-    display: flex;
-    align-items: center;
-    width: 100%;
-}
-
 .description {
     max-width: 700;
+    align-self: center;
 }
 
 .highlight {
     background: linear-gradient(120deg, yellow 0%, orange 100%);
     padding: 0 5px;
-  }
+}

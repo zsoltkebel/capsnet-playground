@@ -13,8 +13,10 @@
     <link href="styles/newstyles.css" rel="stylesheet">
 </head>
 <body>
-    <h4>Train a Capsule Network in your browser.</h4>
-    
+    <header>
+        <h4>Train a Capsule Network in your browser.</h4>
+    </header>
+
     <div id="section-model">
         <div id="loading" class="mdl-progress mdl-js-progress mdl-progress__indeterminate"></div>
 
@@ -32,13 +34,15 @@
                     <span style="display: flex; justify-content: right; flex: 1;">Digit Capsules</span>
                 </div>
                 
-                <svg>
-                    <g id="links" data-preserve></g>
-                </svg>
-                
-                <div id="primary-caps" data-preserve=""></div>
-                <div id="digit-caps" data-preserve=""></div>
-                
+                <div id="capsule-network">
+                    <svg>
+                        <g id="links" data-preserve></g>
+                    </svg>
+                    
+                    <div id="primary-caps" data-preserve=""></div>
+                    <div id="digit-caps" data-preserve=""></div>
+                </div>
+
                 <div id="dynamic-routing-controls">
                     <button id="btn-routing-previous" title="See previous iteration"><</button>
                     <span id="routing-visible-iteration">-</span>
@@ -71,7 +75,6 @@
         <label for="progressBar">Batch: <span id="current-batch" class="digits">0</span>/<span id="total-batches" class="digits">0</span></label>
         <progress id="progressBar" value="0" max="100"></progress>
         
-        <button id="btn-delete-model">Delete Cached Model</button>
         <button id="btn-download-model">Download Model</button>
         
         <button id="btn-load-pretrained-model" title="Reload the model with trained parameters">Load Pre-Trained Model</button>
@@ -81,6 +84,9 @@
     <hr/>
     
     <div class="description">
+        <h4>How does this work?</h4>
+        <p>You can observe how data flows through the capsule network, in particular how the dynamic routing direct primary capsules to digit capsules. You can hover or click on digit capsules to see the coupling coefficients of primary capsules routing to it.</p>
+
         <h4>Model Architecture</h4>
         <p>This is a smaller version of the capsule network architecture described in <a href="https://arxiv.org/abs/1710.09829">Dynamic Routing Between Capsules</a> paper.</p>
         
