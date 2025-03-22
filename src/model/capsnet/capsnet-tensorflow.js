@@ -99,7 +99,7 @@ function dynamicRouting(uHat, iterations = 3) {
     
     vJ = vJ.squeeze(2);  // Remove singleton dimension that was necessary for operations to line up
     
-    return [vJ, tf.keep(tf.stack(cIJs, 1))];
+    return [vJ, tf.stack(cIJs, 1)];
 }
 
 /**
@@ -181,7 +181,10 @@ class DigitCaps extends tf.layers.Layer {
             const [vJ, couplingCoefficients] = dynamicRouting(uHat, this.routingIterations);
             
             // Save coupling coefficient for visualisation
-            this.couplingCoefficients = couplingCoefficients;
+            if (this.couplingCoefficients instanceof tf.Tensor) {
+                this.couplingCoefficients.dispose();
+            }
+            this.couplingCoefficients = tf.keep(couplingCoefficients);
             return vJ
         });
     }
@@ -288,7 +291,7 @@ class CapsuleNetwork extends tf.LayersModel {
     getConfig() {
         return {
             ...super.getConfig(),
-            convOptions: this.laye,
+            convOptions: this.convOptions,
             primaryCapsOptions: this.primaryCapsOptions,
             digitCapsOptions: this.digitCapsOptions,
             decoderOptions: this.decoderOptions,
