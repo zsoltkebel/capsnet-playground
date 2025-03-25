@@ -35,6 +35,8 @@ const lblTotalIterations = d3.select("#routing-total-iterations");
 // Loading indicator
 const loadingIndicator = d3.select("#loading");
 
+let modelReady = false;
+
 // State object stores everything needed to visualise a sample
 let state = {
     visibleRoutingIteration: 2,  // 0-(total routing iterations-1)
@@ -88,6 +90,7 @@ downloadModelButton.on("click", async () => {
 
 loadPreTrainedModelButton.on("click", () => {
     if (confirm("Are you sure you want to load the pre-trained model?")) {
+        modelReady = false;
         modelTrainingTask.sendQuery("loadModel", "https://raw.githubusercontent.com/zsoltkebel/capsnet-models/main/small/epochs-2/capsnet.json");
         loadingIndicator.style("visibility", "visible");
     }
@@ -95,6 +98,7 @@ loadPreTrainedModelButton.on("click", () => {
 
 resetModelButton.on("click", () => {
     if (confirm("Are you sure you want to reset the model?")) {
+        modelReady = false;
         modelTrainingTask.sendQuery("loadModel", ""); // empty URL will reset the model
         loadingIndicator.style("visibility", "visible");
     }
@@ -124,6 +128,11 @@ document.addEventListener("visibilitychange", () => {
     if (!document.hidden && state) {
         // Update visualisation when page becomes visible again
         visualiseSample(state);
+
+        if (modelReady) {
+            // Hide loading indicator if model loaded in background
+            loadingIndicator.style("visibility", "hidden");
+        }
     }
 });
 
@@ -133,6 +142,7 @@ modelTrainingTask.sendQuery("loadModel");
 modelTrainingTask.addListener("modelDidLoad", (config) => {
     d3.select("canvas#input-image").classed("disabled", false);
     d3.select("#btn-train").node().disabled = false;
+    modelReady = true;
 
     modelTrainingTask.sendQuery("predictRandom");
 

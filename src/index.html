@@ -43,12 +43,22 @@
                     <div id="digit-caps" data-preserve=""></div>
                 </div>
 
+                <div class="mdl-tooltip" data-mdl-for="capsule-network">
+                    Select a digit to explore how primary capsules contribute to its output and view their corresponding coupling coefficients.
+                </div>
+
                 <div id="dynamic-routing-controls">
-                    <button id="btn-routing-previous" title="See previous iteration"><</button>
+                    <button id="btn-routing-previous"><</button>
+                    <div class="mdl-tooltip" data-mdl-for="btn-routing-previous">
+                        Show previous iteration of dynamic routing
+                    </div>
                     <span id="routing-visible-iteration">-</span>
                     <span>/</span>
                     <span id="routing-total-iterations">-</span>
-                    <button id="btn-routing-next" title="See next iteration">></button>
+                    <button id="btn-routing-next">></button>
+                    <div class="mdl-tooltip" data-mdl-for="btn-routing-next">
+                        Show next iteration of dynamic routing
+                    </div>
                 </div>
             </div>
             
@@ -84,8 +94,10 @@
     <hr/>
     
     <div class="description">
-        <h4>How does this work?</h4>
-        <p>You can observe how data flows through the capsule network, in particular how the dynamic routing direct primary capsules to digit capsules. You can hover or click on digit capsules to see the coupling coefficients of primary capsules routing to it.</p>
+        <div>
+            <h4>What is dynamic routing?</h4>
+            <p>Dynamic routing is an iterative process in capsule networks that determines how much each lower-layer capsule contributes to the output of a higher-layer capsule. This is controlled by coupling coefficients, which adjust over multiple iterations based on how well a lower-layer capsule’s prediction aligns with the actual output of a higher-layer capsule. Initially, all capsules contribute equally, but as iterations progress, the network strengthens connections where there is strong agreement and weakens those with less agreement. The visualisation displays these coupling coefficients, helping to illustrate how capsules dynamically refine their connections.</p>
+        </div>
 
         <h4>Model Architecture</h4>
         <p>This is a smaller version of the capsule network architecture described in <a href="https://arxiv.org/abs/1710.09829">Dynamic Routing Between Capsules</a> paper.</p>
