@@ -24,7 +24,7 @@ function allClose(tensor1, tensor2, tolerance = 1e-5) {
 
 describe("Margin loss function", () => {
     it("returns a small number when correct capsule has the highest activation", async () => {
-        const trueLabel = tf.tensor([[0, 0, 1, 0]]);  // one-hot 2
+        const trueLabel = tf.oneHot(2, 4);  // one-hot 2
 
         const loss = marginLoss(trueLabel, testCapsuleOutputs).arraySync();
 
@@ -32,7 +32,7 @@ describe("Margin loss function", () => {
     });
 
     it("returns a large number when correct capsule does not have the highest activation", async () => {
-        const testTrueLabel = tf.tensor([[1, 0, 0, 0]]); // one-hot 0
+        const testTrueLabel = tf.oneHot(0, 4); // one-hot 0
 
         const loss = marginLoss(testTrueLabel, testCapsuleOutputs).arraySync();
 
