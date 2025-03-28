@@ -12,11 +12,11 @@ import * as tf from "@tensorflow/tfjs";
  */
 function marginLoss(yTrue, yPred, mPlus=0.9, mMinus=0.1, lam=0.5) {
     // Compute the length of the capsule output vectors to [batchSize, numCaps]
-    const v_c = tf.sqrt(tf.sum(tf.square(yPred), -1))
+    const v_norm = tf.norm(yPred, "euclidean", -1);
     
     // Calculate the margin loss components
-    const left = tf.square(tf.maximum(tf.scalar(0), tf.scalar(mPlus).sub(v_c)));
-    const right = tf.square(tf.maximum(tf.scalar(0), v_c.sub(tf.scalar(mMinus))));
+    const left = tf.square(tf.maximum(tf.scalar(0), tf.scalar(mPlus).sub(v_norm)));
+    const right = tf.square(tf.maximum(tf.scalar(0), v_norm.sub(tf.scalar(mMinus))));
     
     // Combine the margin loss components using the labels
     let margin_loss = yTrue.mul(left).add(tf.scalar(lam).mul(tf.scalar(1).sub(yTrue)).mul(right));
@@ -40,7 +40,7 @@ function reconstructionLoss(yTrue, yPred) {
 }
 
 async function trainModel(model, dataset, epochs, {
-    reconLossWeight=0.0005,
+    reconLossWeight = 0.0005,
     callback = () => {},
 } = {}) {
     const optimiser = tf.train.adam();    
@@ -52,8 +52,6 @@ async function trainModel(model, dataset, epochs, {
         
         while (!result.done) {
             const { x, y } = result.value;
-            
-            await tf.nextFrame();  // Yield to the UI thread
                         
             // Tidy up Tensor operations to avoid memory leaks
             tf.tidy(() => {
@@ -76,8 +74,6 @@ async function trainModel(model, dataset, epochs, {
             // Move to the next batch and increment batchIndex
             result = await iterator.next();
             batchIndex++;
-            
-            await tf.nextFrame();  // Yield control back to the UI for responsiveness
         }
     }
 }
