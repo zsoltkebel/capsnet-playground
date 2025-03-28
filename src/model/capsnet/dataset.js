@@ -60,8 +60,8 @@ async function* mnistGenerator(startIdx = 0, endIdx = NUM_IMAGES, numImagesInMem
             images = await fetchBatchOfImages(i, numImagesInMemory);
         }
 
-        const imageStart = bufferIdx * IMAGE_SIZE;
-        const imageEnd = (bufferIdx + 1) * IMAGE_SIZE;
+        const imageStart = bufferIdx * IMAGE_SIZE;  // Index of first byte of the image
+        const imageEnd = (bufferIdx + 1) * IMAGE_SIZE;  // Index of last byte of the image
 
         // Divide pixel values by 255 to get tensor of values between 0 and 1
         const x = tf.tensor(images.slice(imageStart, imageEnd), [28, 28, 1]).div(255);

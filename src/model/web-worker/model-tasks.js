@@ -41,6 +41,7 @@ const queryableFunctions = {
                 console.warn(`Could not load model from URL: '${url}', reason:\n`, error);
             }
         }
+        model.summary();
 
         await model.save('indexeddb://capsnet');
         console.log("Saved model to browser cache at 'indexeddb://capsnet'");
