@@ -309,7 +309,6 @@ class CapsuleNetwork extends tf.LayersModel {
 * @returns {tf.Sequential} The decoder model
 */
 function createDecoder({ numCapsules = 10, capsuleDimension = 16, imageSize = 28, imageChannels = 1 } = {}) {
-    //TODO perhaps decoder could get an extra tensor or dimension for true labels of the image??
     return tf.sequential({
         layers: [
             new Mask({ inputShape: [numCapsules, capsuleDimension], name: "MeskedDigitCaps" }),
