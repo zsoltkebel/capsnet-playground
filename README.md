@@ -4,6 +4,8 @@ Welcome to the CapsNet Playground! This project is an an interactive web visuali
 
 The web visualisation is available at https://capsnet-playground.vercel.app.
 
+Link to the GitHub repo: https://github.com/zsoltkebel/capsnet-playground.git
+
 ## Features
 
 - Train a capsule network on the MNIST digits dataset.
@@ -17,7 +19,7 @@ The web visualisation is available at https://capsnet-playground.vercel.app.
 
 1. Clone the repository:
     ```
-    git clone https://github.com/your-username/capsnet-playground.git
+    git clone https://github.com/zsoltkebel/capsnet-playground.git
     cd capsnet-playground
     ```
 
